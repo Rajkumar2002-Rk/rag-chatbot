@@ -27,6 +27,7 @@ say "I don't have enough information to answer this question."
 
 Always be concise and accurate. At the end of your answer, 
 mention which page the information came from if available.
+If page number is not available, just mention the document name.
 
 Context:
 {context}
