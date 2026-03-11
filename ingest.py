@@ -1,53 +1,76 @@
-# Run this script whenever you add new documents to data/sample_docs/
-# This rebuilds the vector store with all current documents
+"""
+ingest.py - Document Ingestion Pipeline
+
+Run this script whenever you:
+  - Add new PDFs to the data/ folder
+  - Change chunk_size or chunk_overlap in config.py
+  - Want to rebuild the vector store from scratch
+
+Usage:
+    python ingest.py
+"""
+
 import os
 import shutil
+from dotenv import load_dotenv
+
 from src.document_loader import load_documents
 from src.text_splitter import split_documents
 from src.embeddings import create_vector_store
+from config import DATA_DIR, VECTORSTORE_DIR
+
+load_dotenv()
+
 
 def ingest():
-    """
-    Full ingestion pipeline:
-    1. Load all PDFs from data/sample_docs/
-    2. Split into chunks
-    3. Create embeddings and store in ChromaDB
-    """
+    print("=" * 50)
+    print("RAG Chatbot - Document Ingestion Pipeline")
+    print("=" * 50)
 
-    DOCS_PATH = "data/sample_docs"
-    VECTOR_STORE_PATH = "vectorstore"
-
-    # Safety check — make sure documents folder exists
-    if not os.path.exists(DOCS_PATH):
-        print(f"Error: '{DOCS_PATH}' folder not found.")
-        print("Create the folder and add PDF files before running ingestion.")
+    # ── Step 0: Validate data folder ──
+    if not os.path.exists(DATA_DIR):
+        print(f"\n❌ Error: '{DATA_DIR}/' folder not found.")
+        print(f"   Please create it and add your PDF files.")
         return
 
-    # If vector store already exists, delete it first
-    # This ensures we start fresh with all current documents
-    if os.path.exists(VECTOR_STORE_PATH):
-        print(f"Removing existing vector store...")
-        shutil.rmtree(VECTOR_STORE_PATH)
-        print("Done.")
-
-    # Step 1: Load documents
-    print("\nStep 1: Loading documents...")
-    documents = load_documents(DOCS_PATH)
-
-    if not documents:
-        print("No documents found. Add PDF files to data/sample_docs/")
+    pdf_files = [f for f in os.listdir(DATA_DIR) if f.endswith(".pdf")]
+    if not pdf_files:
+        print(f"\n❌ Error: No PDF files found in '{DATA_DIR}/'.")
+        print(f"   Please add at least one PDF file.")
         return
 
-    # Step 2: Split into chunks
-    print("\nStep 2: Splitting into chunks...")
+    print(f"\nFound {len(pdf_files)} PDF file(s):")
+    for f in pdf_files:
+        print(f"  - {f}")
+
+    # ── Step 1: Clear old vector store ──
+    if os.path.exists(VECTORSTORE_DIR):
+        print(f"\nRemoving old vector store at '{VECTORSTORE_DIR}/'...")
+        shutil.rmtree(VECTORSTORE_DIR)
+        print("  Old vector store removed.")
+
+    # ── Step 2: Load documents ──
+    print(f"\n[Step 1/3] Loading documents from '{DATA_DIR}/'...")
+    documents = load_documents(DATA_DIR)
+
+    # ── Step 3: Split into chunks ──
+    print(f"\n[Step 2/3] Splitting documents into chunks...")
     chunks = split_documents(documents)
 
-    # Step 3: Create vector store
-    print("\nStep 3: Creating embeddings and storing in ChromaDB...")
-    create_vector_store(chunks, persist_directory=VECTOR_STORE_PATH)
+    # ── Step 4: Embed and store ──
+    print(f"\n[Step 3/3] Creating embeddings and saving vector store...")
+    create_vector_store(chunks)
 
-    print("\n✅ Ingestion complete!")
-    print(f"Your chatbot is ready. Run: streamlit run app.py")
+    # ── Done ──
+    print("\n" + "=" * 50)
+    print("✅ Ingestion complete!")
+    print(f"   PDFs processed : {len(pdf_files)}")
+    print(f"   Pages loaded   : {len(documents)}")
+    print(f"   Chunks created : {len(chunks)}")
+    print(f"   Vector store   : {VECTORSTORE_DIR}/")
+    print("=" * 50)
+    print("\nYou can now run the chatbot with:")
+    print("   streamlit run app.py")
 
 
 if __name__ == "__main__":

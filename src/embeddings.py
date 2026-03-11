@@ -1,78 +1,72 @@
-# src/embeddings.py
-
 import os
-from dotenv import load_dotenv
-from langchain_openai import OpenAIEmbeddings
-from langchain_chroma import Chroma
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-# Load environment variables from .env file
-# This is what reads your OPENAI_API_KEY safely
+from dotenv import load_dotenv
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
+from config import EMBEDDING_MODEL, VECTORSTORE_DIR
+
 load_dotenv()
 
-def create_vector_store(chunks: list, persist_directory: str = "vectorstore") -> Chroma:
-    # Initialize the embedding model
-    # This connects to OpenAI's API using your key from .env
-    embeddings = OpenAIEmbeddings(
-        model="text-embedding-3-small",  # OpenAI's latest, cheapest embedding model
-        openai_api_key=os.getenv("OPENAI_API_KEY")
-    )
 
-    print(f"Creating embeddings for {len(chunks)} chunks...")
-    print("This may take a minute — we are calling OpenAI's API for each chunk...")
-
-    # Chroma.from_documents does three things in one call:
-    # 1. Takes each chunk's text and sends it to the embedding model
-    # 2. Gets back a vector for each chunk
-    # 3. Stores both the vector AND the original text in ChromaDB
-    vector_store = Chroma.from_documents(
-        documents=chunks,
-        embedding=embeddings,
-        persist_directory=persist_directory
-    )
-
-    print(f"Vector store created with {vector_store._collection.count()} chunks")
-    print(f"Saved to '{persist_directory}' folder")
-
-    return vector_store
+def get_embeddings():
+    """Create and return an OpenAIEmbeddings instance with API key validation."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY not found in .env file. Please add it.")
+    return OpenAIEmbeddings(model=EMBEDDING_MODEL, openai_api_key=api_key)
 
 
-def load_vector_store(persist_directory: str = "vectorstore") -> Chroma:
+def create_vector_store(chunks: list, persist_directory: str = VECTORSTORE_DIR):
+    """
+    Create a new ChromaDB vector store from document chunks.
 
-    embeddings = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_key=os.getenv("OPENAI_API_KEY")
-    )
+    Args:
+        chunks: List of chunked Document objects
+        persist_directory: Folder to save the vector store
 
+    Returns:
+        Chroma vector store instance
+    """
+    try:
+        embeddings = get_embeddings()
+        vector_store = Chroma.from_documents(
+            documents=chunks,
+            embedding=embeddings,
+            persist_directory=persist_directory
+        )
+        print(f"Vector store created with {len(chunks)} chunks at '{persist_directory}'")
+        return vector_store
+
+    except Exception as e:
+        error_str = str(e).lower()
+        if "quota" in error_str or "billing" in error_str or "insufficient" in error_str:
+            raise RuntimeError(
+                "OpenAI quota exceeded. Please add credits at: platform.openai.com/billing"
+            ) from e
+        raise
+
+
+def load_vector_store(persist_directory: str = VECTORSTORE_DIR):
+    """
+    Load an existing ChromaDB vector store from disk.
+
+    Args:
+        persist_directory: Folder where the vector store was saved
+
+    Returns:
+        Chroma vector store instance
+    """
+    if not os.path.exists(persist_directory):
+        raise FileNotFoundError(
+            f"Vector store not found at '{persist_directory}'. "
+            f"Please run `python ingest.py` first to build it."
+        )
+    embeddings = get_embeddings()
     vector_store = Chroma(
         persist_directory=persist_directory,
         embedding_function=embeddings
     )
-
-    print(f"Loaded existing vector store with {vector_store._collection.count()} chunks")
-
+    print(f"Vector store loaded from '{persist_directory}'")
     return vector_store
-
-
-if __name__ == "__main__":
-    from document_loader import load_documents
-    from text_splitter import split_documents
-
-    docs = load_documents("data/sample_docs")
-
-    chunks = split_documents(docs)
-
-    vector_store = create_vector_store(chunks)
-
-    print("\n--- Testing Similarity Search ---")
-    query = "What is the population of India?"
-    results = vector_store.similarity_search(query, k=3)
-
-    print(f"\nQuery: '{query}'")
-    print(f"Found {len(results)} relevant chunks:\n")
-
-    for i, doc in enumerate(results):
-        print(f"Result {i+1}:")
-        print(f"Content: {doc.page_content[:200]}")
-        print(f"Source: {doc.metadata.get('source', 'unknown')}")
-        print(f"Page: {doc.metadata.get('page', 'unknown')}")
-        print("---")
