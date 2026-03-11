@@ -1,22 +1,23 @@
 # 🤖 Enterprise RAG Chatbot
 
-A production-ready Retrieval-Augmented Generation (RAG) chatbot that answers questions from your own documents with source citations. Built with LangChain, OpenAI, ChromaDB, and Streamlit.
+A production-grade **Retrieval-Augmented Generation (RAG)** pipeline that answers questions from custom PDF documents — with mandatory source citations and zero hallucinations on out-of-scope queries.
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue)
-![LangChain](https://img.shields.io/badge/LangChain-0.2+-green)
-![OpenAI](https://img.shields.io/badge/OpenAI-GPT--3.5--turbo-orange)
-![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector--Store-purple)
-![Streamlit](https://img.shields.io/badge/Streamlit-UI-red)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://langchain.com)
+[![OpenAI](https://img.shields.io/badge/OpenAI-API-412991?style=flat-square&logo=openai&logoColor=white)](https://openai.com)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector_Store-FF6B35?style=flat-square)](https://trychroma.com)
+[![Streamlit](https://img.shields.io/badge/Streamlit-UI-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io)
 
 ---
 
-## 📌 What This Project Does
+## 🧠 What It Does
 
-Most AI chatbots only know what they were trained on. This chatbot reads **your own documents** and answers questions based on them — accurately, with source citations, and without hallucinating.
+Large language models like GPT-3.5 only know what they were trained on — they have no access to private documents, recent data, or domain-specific knowledge bases. They also hallucinate facts confidently, making them unreliable for enterprise use cases.
 
-**Example:**
-- Upload a company policy PDF → Ask "What is the refund policy?" → Get an exact answer with page number
-- Upload a research paper → Ask "What were the key findings?" → Get a grounded, cited answer
+This RAG chatbot solves both problems:
+- **Grounds every answer** in real documents with traceable source citations
+- **Refuses to answer** questions outside the provided documents (no hallucination)
+- **Cites every fact** with `[Document: filename.pdf | Page: X]`
 
 ---
 
@@ -24,35 +25,38 @@ Most AI chatbots only know what they were trained on. This chatbot reads **your 
 
 ```
 PDF Documents
-      ↓
-Document Loader (PyPDF)
-      ↓
-Text Splitter (500 char chunks, 50 char overlap)
-      ↓
-Embedding Model (OpenAI text-embedding-3-small)
-      ↓
-Vector Store (ChromaDB)
-      ↓
-User Question → Query Vector → Similarity Search (Top 3 chunks)
-      ↓
-Prompt Template + Retrieved Chunks → GPT-3.5-turbo
-      ↓
-Grounded Answer with Source Citation
+     ↓
+PyPDF Loader (DirectoryLoader)
+     ↓
+RecursiveCharacterTextSplitter
+  chunk_size=1000 | chunk_overlap=200
+     ↓
+OpenAI Embeddings (text-embedding-3-small → 1536-dim vectors)
+     ↓
+ChromaDB Vector Store (persisted to disk)
+     ↓
+MMR Retrieval (fetch_k=20 → re-rank → top-5, λ=0.7)
+     ↓
+format_docs_with_metadata()
+  [SOURCE N] | Document: filename | Page: X
+     ↓
+Strict Citation Prompt → GPT-3.5-turbo
+     ↓
+Grounded Answer with [Document | Page] Citations
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## ✨ Production Features
 
-| Tool | Purpose |
-|------|---------|
-| Python 3.10+ | Core language |
-| LangChain | RAG pipeline orchestration |
-| OpenAI API | Embeddings + LLM (GPT-3.5-turbo) |
-| ChromaDB | Local vector database |
-| PyPDF | PDF text extraction |
-| Streamlit | Web interface |
-| python-dotenv | Secure API key management |
+| Feature | Details |
+|---|---|
+| **MMR Retrieval** | Maximum Marginal Relevance balances relevance + diversity; avoids returning near-duplicate chunks |
+| **Metadata Citations** | Every chunk is labeled with source filename and page before entering the LLM context |
+| **Strict Prompt** | LLM must cite every fact or respond "documents do not contain this information" |
+| **Centralized Config** | All settings (chunk size, model names, retrieval params) managed in `config.py` |
+| **Error Handling** | Handles missing API key, OpenAI quota exceeded, and missing vector store gracefully |
+| **Multi-Document** | Query across multiple PDFs simultaneously; citations identify which document each fact came from |
 
 ---
 
@@ -60,146 +64,112 @@ Grounded Answer with Source Citation
 
 ```
 rag-chatbot/
-│
+├── config.py              # Centralized settings (chunk size, models, retrieval params)
+├── app.py                 # Streamlit chat UI with error handling
+├── ingest.py              # Document ingestion pipeline (run once per data change)
 ├── data/
-│   └── sample_docs/          # Add your PDF documents here
-│
+│   └── sampledocs/        # Add your PDF files here
+├── vectorstore/           # ChromaDB persisted vector store (auto-generated)
 ├── src/
-│   ├── document_loader.py    # Loads and parses PDF files
-│   ├── text_splitter.py      # Splits documents into chunks
-│   ├── embeddings.py         # Creates and stores embeddings
-│   ├── retriever.py          # Retrieves relevant chunks
-│   └── llm_chain.py          # Connects retriever to LLM
-│
-├── vectorstore/              # ChromaDB data (auto-generated)
-├── app.py                    # Streamlit web interface
-├── ingest.py                 # Document ingestion pipeline
-├── requirements.txt          # Project dependencies
-└── .env                      # API keys (never commit this)
+│   ├── document_loader.py # PDF loading with PyPDF + DirectoryLoader
+│   ├── text_splitter.py   # RecursiveCharacterTextSplitter (1000/200)
+│   ├── embeddings.py      # OpenAI embeddings + ChromaDB create/load
+│   ├── retriever.py       # MMR retriever (k=5, fetch_k=20, λ=0.7)
+│   └── llm_chain.py       # format_docs_with_metadata + strict prompt + LCEL chain
+├── requirements.txt
+└── .env                   # OPENAI_API_KEY (not committed)
 ```
 
 ---
 
-## ⚙️ Installation
+## 🚀 Getting Started
 
-**1. Clone the repository**
+### 1. Clone the repo
 ```bash
 git clone https://github.com/Rajkumar2002-Rk/rag-chatbot.git
 cd rag-chatbot
 ```
 
-**2. Create and activate virtual environment**
+### 2. Create virtual environment
 ```bash
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate      # Mac/Linux
 ```
 
-**3. Install dependencies**
+### 3. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-**4. Set up your API key**
-
-Create a `.env` file in the root folder:
+### 4. Set up your API key
+Create a `.env` file in the project root:
 ```
-OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_API_KEY=your-openai-api-key-here
 ```
-Get your API key at: https://platform.openai.com
 
----
+### 5. Add your PDF documents
+Place your PDF files in the `data/sampledocs/` folder.
 
-## 🚀 Usage
-
-**Step 1 — Add your documents**
-
-Place any PDF files inside `data/sample_docs/`
-
-**Step 2 — Run ingestion**
+### 6. Build the vector store
 ```bash
 python ingest.py
 ```
-This processes your documents, creates embeddings, and builds the vector store. Run this once, or whenever you add new documents.
 
-**Step 3 — Start the chatbot**
+### 7. Run the chatbot
 ```bash
 streamlit run app.py
 ```
-Open your browser at `http://localhost:8501` and start asking questions.
 
 ---
 
-## 💡 Key Features
+## ⚙️ Configuration
 
-- **Multi-document support** — Load and query multiple PDFs simultaneously
-- **Semantic search** — Finds relevant content even when exact words don't match
-- **Source citations** — Every answer includes the source document and page number
-- **Hallucination prevention** — Prompt engineering ensures answers stay grounded in documents
-- **Persistent vector store** — Embeddings saved to disk, no re-processing on restart
-- **Clean web UI** — Chat interface with message history via Streamlit
+All settings are centralized in `config.py`:
 
----
-
-## 🧠 How It Works
-
-**Ingestion Phase (runs once):**
-1. PDFs are loaded and text is extracted page by page
-2. Text is split into 500-character chunks with 50-character overlap
-3. Each chunk is converted to a 1536-dimensional vector using OpenAI embeddings
-4. Vectors and original text are stored in ChromaDB
-
-**Query Phase (every question):**
-1. User's question is converted to a query vector using the same embedding model
-2. ChromaDB finds the top 3 most similar chunks using cosine similarity
-3. Retrieved chunks are injected into a prompt template
-4. GPT-3.5-turbo generates a grounded answer with source citations
-
----
-
-## 🔍 Example Queries
-
-```
-✅ "What is the population of India?"
-✅ "When was Python founded?"
-✅ "What religions are practiced in India?"
-✅ "What are the benefits of using Python?"
-❌ "What is the weather today?" → "I don't have enough information" (correct behavior)
+```python
+CHUNK_SIZE = 1000        # Characters per chunk
+CHUNK_OVERLAP = 200      # Overlap between chunks (20% — production standard)
+EMBEDDING_MODEL = "text-embedding-3-small"
+LLM_MODEL = "gpt-3.5-turbo"
+LLM_TEMPERATURE = 0      # Deterministic — best for factual Q&A
+RETRIEVAL_K = 5          # Chunks returned to LLM
+RETRIEVAL_FETCH_K = 20   # Candidates before MMR re-ranking
+RETRIEVAL_LAMBDA = 0.7   # Relevance vs. diversity balance
 ```
 
 ---
 
-## 🚧 Future Improvements
+## 🔬 Key Implementation Details
 
-- [ ] Add support for Word documents (.docx) and web URLs
-- [ ] Implement RAGAS evaluation framework for answer quality metrics
-- [ ] Replace ChromaDB with Pinecone for cloud-scale deployment
-- [ ] Add re-ranking layer for improved retrieval precision
-- [ ] Implement conversation memory for follow-up questions
-- [ ] Add document upload UI directly in the Streamlit interface
-- [ ] Deploy to AWS/GCP with authentication for multi-user access
+### Why MMR instead of cosine similarity?
+Standard cosine similarity returns the top-k most similar chunks — but they're often near-duplicates from the same paragraph. MMR fetches 20 candidates and re-ranks them to maximize both relevance *and* diversity, ensuring the LLM receives broader context coverage.
 
----
+### Why 1000/200 chunking?
+- `chunk_size=500` cuts sentences mid-thought, losing context
+- `chunk_size=1000` preserves full paragraphs and complete ideas
+- `chunk_overlap=200` (20%) ensures no information is lost at chunk boundaries — industry standard
 
-## 📊 Skills Demonstrated
-
-- Retrieval-Augmented Generation (RAG) pipeline design
-- Vector embeddings and semantic search
-- LangChain framework and LCEL chains
-- Prompt engineering for hallucination prevention
-- Vector database management (ChromaDB)
-- OpenAI API integration
-- Python modular code architecture
-- Streamlit web application development
+### Why format_docs_with_metadata()?
+A common mistake in RAG implementations is to strip metadata when formatting documents for the LLM. This function preserves source filename and page number inside the context string, enabling the LLM to cite exactly where each fact came from.
 
 ---
 
-## 👤 Author
+## 🛠️ Tech Stack
 
-**Raj Kumar**
-- GitHub: [@Rajkumar2002-Rk](https://github.com/Rajkumar2002-Rk)
+- **LangChain** — Document loading, text splitting, LCEL chain composition
+- **OpenAI API** — `text-embedding-3-small` (embeddings) + `gpt-3.5-turbo` (generation)
+- **ChromaDB** — Local vector database with persistent storage
+- **Streamlit** — Chat UI with session state and cached resource loading
+- **PyPDF** — PDF parsing via `PyPDFLoader`
 
 ---
 
 ## 📄 License
 
-This project is open source and available under the [MIT License](LICENSE).
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+<div align="center">
+  <sub>Built by <a href="https://rajkumar2002-rk.github.io/Real_Portfolio/">Raj Kumar Nelluri</a> · AI Engineer</sub>
+</div>
