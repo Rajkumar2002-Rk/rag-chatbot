@@ -75,6 +75,10 @@ def process_uploaded_pdf(uploaded_file):
         # Step 3: Delete the temp file immediately — we have the content in memory now
         os.unlink(tmp_path)
 
+        # Fix: replace temp path with real uploaded filename in metadata
+        for doc in documents:
+            doc.metadata["source"] = uploaded_file.name
+
         if not documents:
             raise ValueError("Could not extract any text from the PDF. Is it a scanned image?")
 

@@ -63,7 +63,7 @@ STRICT RULES:
 1. Answer ONLY using the SOURCE DOCUMENTS provided below.
 2. NEVER use your training knowledge or make assumptions beyond the documents.
 3. For EVERY fact you state, you MUST cite it using this exact format:
-   [Document: filename.pdf | Page: X]
+   [SOURCE N: filename.pdf | Page: X]
 4. If the answer is not found in the provided sources, respond EXACTLY with:
    "The provided documents do not contain information to answer this question."
 5. Do NOT combine or guess — cite each fact to its specific source.
