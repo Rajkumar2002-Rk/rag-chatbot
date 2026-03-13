@@ -1,0 +1,35 @@
+# .dockerignore — files NOT to copy into the Docker container
+# Works exactly like .gitignore but for Docker builds
+
+# Virtual environment — container installs its own libraries
+venv/
+.venv/
+env/
+
+# Environment file — NEVER bake secrets into a Docker image
+# We pass OPENAI_API_KEY as an environment variable at runtime
+.env
+
+# Vector store — we rebuild this inside the container using ingest.py
+vectorstore/
+
+# Git files — not needed inside container
+.git/
+.gitignore
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# macOS system files
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log
