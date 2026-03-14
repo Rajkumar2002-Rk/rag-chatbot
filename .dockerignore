@@ -11,7 +11,7 @@ env/
 .env
 
 # Vector store — we rebuild this inside the container using ingest.py
-vectorstore/
+vectorstore_data/
 
 # Git files — not needed inside container
 .git/
