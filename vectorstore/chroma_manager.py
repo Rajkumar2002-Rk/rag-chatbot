@@ -47,6 +47,7 @@ class ChromaManager:
             model=EMBEDDING_MODEL,
             openai_api_key=OPENAI_API_KEY,
         )
+        self._temp_dir: Optional[str] = None
         self._store: Optional[Chroma] = None
 
     # ── Internal ──────────────────────────────────────────────────────────────
@@ -54,8 +55,10 @@ class ChromaManager:
     def _get_store(self):
         if self._store is None:
           if not self.persist:
-            # Upload/in-memory mode
-            client = chromadb.EphemeralClient()
+            import tempfile
+            if self._temp_dir is None:
+                self._temp_dir = tempfile.mkdtemp()
+            client = chromadb.PersistentClient(path=self._temp_dir)
           else:
             # Library/persistent mode
             client = chromadb.PersistentClient(path=str(self.persist_dir))
