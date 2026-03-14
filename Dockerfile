@@ -1,6 +1,7 @@
 FROM python:3.10-slim
 
 WORKDIR /app
+ENV PYTHONPATH=/app
 
 # System dependencies for ChromaDB and PDF processing
 RUN apt-get update && apt-get install -y \
