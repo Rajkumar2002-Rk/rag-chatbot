@@ -1,174 +1,262 @@
-# 🤖 Enterprise RAG Chatbot
+# 🤖 Enterprise RAG Chatbot v2 — Production AI Document Intelligence
 
-A production-grade **Retrieval-Augmented Generation (RAG)** pipeline that answers questions from custom PDF documents — with mandatory source citations and zero hallucinations on out-of-scope queries.
+A production-grade **Retrieval-Augmented Generation (RAG)** system upgraded with evaluation, observability, multi-document support, hallucination guardrails, and a modular architecture.
 
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://langchain.com)
-[![OpenAI](https://img.shields.io/badge/OpenAI-API-412991?style=flat-square&logo=openai&logoColor=white)](https://openai.com)
-[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector_Store-FF6B35?style=flat-square)](https://trychroma.com)
-[![Streamlit](https://img.shields.io/badge/Streamlit-UI-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io)
-
----
-
-## 🧠 What It Does
-
-Large language models like GPT-3.5 only know what they were trained on — they have no access to private documents, recent data, or domain-specific knowledge bases. They also hallucinate facts confidently, making them unreliable for enterprise use cases.
-
-This RAG chatbot solves both problems:
-- **Grounds every answer** in real documents with traceable source citations
-- **Refuses to answer** questions outside the provided documents (no hallucination)
-- **Cites every fact** with `[Document: filename.pdf | Page: X]`
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python)](https://python.org)
+[![LangChain](https://img.shields.io/badge/LangChain-0.3-1C3C3C?style=flat-square)](https://langchain.com)
+[![OpenAI](https://img.shields.io/badge/OpenAI-API-412991?style=flat-square&logo=openai)](https://openai.com)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-0.5-FF6B35?style=flat-square)](https://trychroma.com)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.39-FF4B4B?style=flat-square&logo=streamlit)](https://streamlit.io)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker)](https://docker.com)
+[![AWS EC2](https://img.shields.io/badge/AWS-EC2-FF9900?style=flat-square&logo=amazonaws)](https://aws.amazon.com/ec2/)
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ System Architecture
 
 ```
-PDF Documents
-     ↓
-PyPDF Loader (DirectoryLoader)
-     ↓
-RecursiveCharacterTextSplitter
-  chunk_size=1000 | chunk_overlap=200
-     ↓
-OpenAI Embeddings (text-embedding-3-small → 1536-dim vectors)
-     ↓
-ChromaDB Vector Store (persisted to disk)
-     ↓
-MMR Retrieval (fetch_k=20 → re-rank → top-5, λ=0.7)
-     ↓
-format_docs_with_metadata()
-  [SOURCE N] | Document: filename | Page: X
-     ↓
-Strict Citation Prompt → GPT-3.5-turbo
-     ↓
-Grounded Answer with [Document | Page] Citations
+┌─────────────────────────────────────────────────────────────────────┐
+│                        USER INTERFACE                                │
+│           app/streamlit_ui.py  ←→  api/rag_api.py                  │
+│     [Library Mode | Upload Mode | Multi-Doc Select | Metrics Panel] │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+          ┌──────────────────▼──────────────────┐
+          │           api/rag_api.py             │
+          │   run_query() — orchestrates all     │
+          │   steps below                        │
+          └──────────────────┬──────────────────┘
+                             │
+     ┌───────────────────────▼───────────────────────┐
+     │              retrieval/retriever.py            │
+     │  retrieve_with_scores() → rerank_by_score()   │
+     │  check_retrieval_confidence() [GUARDRAIL]      │
+     └───────────────────────┬───────────────────────┘
+                             │
+     ┌───────────────────────▼───────────────────────┐
+     │         vectorstore/chroma_manager.py          │
+     │  similarity_search_with_scores()               │
+     │  [persisted library | in-memory uploads]       │
+     └───────────────────────┬───────────────────────┘
+                             │
+     ┌───────────────────────▼───────────────────────┐
+     │           LLM (gpt-3.5-turbo)                 │
+     │  format_docs_with_metadata() → prompt →       │
+     │  [SOURCE N: filename | Page] citations        │
+     └───────────────────────┬───────────────────────┘
+                             │
+     ┌───────────────────────▼───────────────────────┐
+     │           monitoring/logger.py                 │
+     │  log_query_event() → logs/rag_queries.log     │
+     │  monitoring/metrics.py → Streamlit dashboard  │
+     └───────────────────────────────────────────────┘
 ```
 
 ---
 
-## ✨ Production Features
+## 📊 Data Flow
 
-| Feature | Details |
+```
+PDF Files
+   ↓
+ingestion/pdf_loader.py       ← PyPDFLoader, source metadata patching
+   ↓
+ingestion/chunking.py         ← RecursiveCharacterTextSplitter (1000/200)
+   ↓
+ingestion/embedding_pipeline.py ← OpenAI text-embedding-3-small (1536-dim)
+   ↓
+vectorstore/chroma_manager.py ← ChromaDB (persisted or in-memory)
+   ↓
+retrieval/retriever.py        ← MMR (fetch_k=20 → rerank → top-5)
+   ↓
+retrieval/reranker.py         ← Score-based filtering (threshold=0.30)
+   ↓  [GUARDRAIL: fallback if low confidence]
+api/rag_api.py                ← format_docs_with_metadata() + strict prompt
+   ↓
+GPT-3.5-turbo                 ← Grounded answer with [SOURCE N: file | Page]
+   ↓
+monitoring/logger.py          ← JSON log entry to logs/rag_queries.log
+```
+
+---
+
+## ✨ Production Improvements (v1 → v2)
+
+| Improvement | What Changed |
 |---|---|
-| **MMR Retrieval** | Maximum Marginal Relevance balances relevance + diversity; avoids returning near-duplicate chunks |
-| **Metadata Citations** | Every chunk is labeled with source filename and page before entering the LLM context |
-| **Strict Prompt** | LLM must cite every fact or respond "documents do not contain this information" |
-| **Centralized Config** | All settings (chunk size, model names, retrieval params) managed in `config.py` |
-| **Error Handling** | Handles missing API key, OpenAI quota exceeded, and missing vector store gracefully |
-| **Multi-Document** | Query across multiple PDFs simultaneously; citations identify which document each fact came from |
+| **Modular Architecture** | Business logic moved out of Streamlit into `api/`, `ingestion/`, `retrieval/`, `vectorstore/` modules |
+| **Retrieval Evaluation** | `evaluation/run_rag_eval.py` runs benchmark questions and measures hit rate, citation accuracy, latency |
+| **Observability** | Structured JSON logging to `logs/rag_queries.log`; real-time metrics dashboard in Streamlit sidebar |
+| **Multi-Document Support** | Upload multiple PDFs; select/deselect specific documents for retrieval filtering |
+| **Hallucination Guardrails** | Similarity threshold + minimum context length check before calling LLM; fallback response on failure |
+| **Score-Based Reranking** | `reranker.py` filters chunks below threshold before LLM context injection |
 
 ---
 
 ## 📁 Project Structure
 
 ```
-rag-chatbot/
-├── config.py              # Centralized settings (chunk size, models, retrieval params)
-├── app.py                 # Streamlit chat UI with error handling
-├── ingest.py              # Document ingestion pipeline (run once per data change)
-├── data/
-│   └── sampledocs/        # Add your PDF files here
-├── vectorstore/           # ChromaDB persisted vector store (auto-generated)
-├── src/
-│   ├── document_loader.py # PDF loading with PyPDF + DirectoryLoader
-│   ├── text_splitter.py   # RecursiveCharacterTextSplitter (1000/200)
-│   ├── embeddings.py      # OpenAI embeddings + ChromaDB create/load
-│   ├── retriever.py       # MMR retriever (k=5, fetch_k=20, λ=0.7)
-│   └── llm_chain.py       # format_docs_with_metadata + strict prompt + LCEL chain
-├── requirements.txt
-└── .env                   # OPENAI_API_KEY (not committed)
+rag-chatbot-v2/
+├── app/
+│   └── streamlit_ui.py          # Streamlit UI (library + upload + metrics)
+├── api/
+│   └── rag_api.py               # Core RAG logic: run_query(), build_rag_chain()
+├── ingestion/
+│   ├── pdf_loader.py            # PDF loading + metadata normalization
+│   ├── chunking.py              # RecursiveCharacterTextSplitter
+│   └── embedding_pipeline.py   # End-to-end ingest pipeline
+├── retrieval/
+│   ├── retriever.py             # MMR retriever + hallucination guardrails
+│   └── reranker.py              # Score-based chunk filtering
+├── vectorstore/
+│   └── chroma_manager.py        # ChromaDB CRUD + document listing
+├── evaluation/
+│   ├── run_rag_eval.py          # Evaluation script
+│   └── benchmark_questions.json # Ground-truth question set
+├── monitoring/
+│   ├── logger.py                # Structured JSON logger
+│   └── metrics.py               # In-memory metrics tracker
+├── prompts/
+│   └── rag_prompt.txt           # Strict citation prompt template
+├── config/
+│   └── settings.py              # Centralized env-based configuration
+├── logs/                        # rag_queries.log written here
+├── data/sampledocs/             # Add your PDFs here
+├── vectorstore/                 # ChromaDB persisted store
+├── ingest.py                    # Top-level ingestion script
+├── Dockerfile
+├── .dockerignore
+├── .env.example
+└── requirements.txt
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Setup — Local
 
-### 1. Clone the repo
 ```bash
 git clone https://github.com/Rajkumar2002-Rk/rag-chatbot.git
 cd rag-chatbot
-```
 
-### 2. Create virtual environment
-```bash
 python -m venv venv
-source venv/bin/activate      # Mac/Linux
-```
+source venv/bin/activate
 
-### 3. Install dependencies
-```bash
 pip install -r requirements.txt
-```
 
-### 4. Set up your API key
-Create a `.env` file in the project root:
-```
-OPENAI_API_KEY=your-openai-api-key-here
-```
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
 
-### 5. Add your PDF documents
-Place your PDF files in the `data/sampledocs/` folder.
+# Add your PDFs to data/sampledocs/
 
-### 6. Build the vector store
-```bash
 python ingest.py
-```
 
-### 7. Run the chatbot
-```bash
-streamlit run app.py
+streamlit run app/streamlit_ui.py
 ```
 
 ---
 
-## ⚙️ Configuration
+## 🐳 Setup — Docker
 
-All settings are centralized in `config.py`:
+```bash
+docker build -t rag-chatbot:latest .
 
-```python
-CHUNK_SIZE = 1000        # Characters per chunk
-CHUNK_OVERLAP = 200      # Overlap between chunks (20% — production standard)
-EMBEDDING_MODEL = "text-embedding-3-small"
-LLM_MODEL = "gpt-3.5-turbo"
-LLM_TEMPERATURE = 0      # Deterministic — best for factual Q&A
-RETRIEVAL_K = 5          # Chunks returned to LLM
-RETRIEVAL_FETCH_K = 20   # Candidates before MMR re-ranking
-RETRIEVAL_LAMBDA = 0.7   # Relevance vs. diversity balance
+docker volume create rag-vectorstore
+
+docker run -d --name rag-chatbot-app --restart unless-stopped \
+  -p 8501:8501 --env-file .env \
+  -v rag-vectorstore:/app/vectorstore \
+  rag-chatbot:latest
+
+# Index your PDFs into the running container
+docker exec rag-chatbot-app python ingest.py
+```
+
+Open `http://localhost:8501`
+
+---
+
+## 📊 Evaluation
+
+Run the benchmark evaluation against your indexed document library:
+
+```bash
+python evaluation/run_rag_eval.py
+# or with custom paths:
+python evaluation/run_rag_eval.py \
+  --questions evaluation/benchmark_questions.json \
+  --output evaluation_results.json \
+  --collection library
+```
+
+**Output metrics:**
+- **Retrieval Hit Rate** — % of questions where the expected document was retrieved
+- **Citation Accuracy** — % of answers that include a `[SOURCE N: file | Page]` citation
+- **Fallback Accuracy** — % of out-of-scope questions correctly handled by guardrail
+- **Avg Latency (ms)** — mean end-to-end response time
+
+**Adding your own benchmark questions** — edit `evaluation/benchmark_questions.json`:
+```json
+{
+  "id": "q011",
+  "question": "What is the population of China?",
+  "expected_document": "china-wikipedia.pdf",
+  "expected_page": 2,
+  "reference_answer": "The population of China in 2025 was estimated to be 1,404,890,000.",
+  "category": "factual"
+}
 ```
 
 ---
 
 ## 🔬 Key Implementation Details
 
-### Why MMR instead of cosine similarity?
-Standard cosine similarity returns the top-k most similar chunks — but they're often near-duplicates from the same paragraph. MMR fetches 20 candidates and re-ranks them to maximize both relevance *and* diversity, ensuring the LLM receives broader context coverage.
+### Hallucination Guardrails
+Three conditions trigger the fallback response:
+1. No documents retrieved from ChromaDB
+2. Best similarity score < `SIMILARITY_THRESHOLD` (default: 0.30)
+3. Total context length < `MIN_CONTEXT_LENGTH` (default: 50 chars)
 
-### Why 1000/200 chunking?
-- `chunk_size=500` cuts sentences mid-thought, losing context
-- `chunk_size=1000` preserves full paragraphs and complete ideas
-- `chunk_overlap=200` (20%) ensures no information is lost at chunk boundaries — industry standard
+### Multi-Document Filtering
+ChromaDB's `filter` parameter restricts retrieval to selected documents:
+```python
+filter={"source": {"$in": ["doc1.pdf", "doc2.pdf"]}}
+```
 
-### Why format_docs_with_metadata()?
-A common mistake in RAG implementations is to strip metadata when formatting documents for the LLM. This function preserves source filename and page number inside the context string, enabling the LLM to cite exactly where each fact came from.
+### Structured Logging
+Every query writes a JSON line to `logs/rag_queries.log`:
+```json
+{
+  "timestamp": "2026-03-13T14:22:01.123Z",
+  "query": "What is the population of India?",
+  "response_time_ms": 1240,
+  "retrieval_time_ms": 180,
+  "num_chunks": 5,
+  "source_documents": ["india-wikipedia.pdf"],
+  "token_usage_estimate": 312
+}
+```
 
 ---
 
-## 🛠️ Tech Stack
+## ⚙️ Configuration
 
-- **LangChain** — Document loading, text splitting, LCEL chain composition
-- **OpenAI API** — `text-embedding-3-small` (embeddings) + `gpt-3.5-turbo` (generation)
-- **ChromaDB** — Local vector database with persistent storage
-- **Streamlit** — Chat UI with session state and cached resource loading
-- **PyPDF** — PDF parsing via `PyPDFLoader`
+All settings in `config/settings.py` (overridable via `.env`):
+
+| Variable | Default | Description |
+|---|---|---|
+| `CHUNK_SIZE` | 1000 | Characters per chunk |
+| `CHUNK_OVERLAP` | 200 | Overlap between chunks |
+| `RETRIEVAL_K` | 5 | Chunks returned to LLM |
+| `RETRIEVAL_FETCH_K` | 20 | MMR candidates before reranking |
+| `RETRIEVAL_LAMBDA` | 0.7 | Relevance vs diversity balance |
+| `SIMILARITY_THRESHOLD` | 0.30 | Min score to trust a chunk |
+| `MIN_CONTEXT_LENGTH` | 50 | Min chars of context before LLM call |
 
 ---
 
 ## 📄 License
 
-MIT License — see [LICENSE](LICENSE) for details.
-
----
+MIT License
 
 <div align="center">
   <sub>Built by <a href="https://rajkumar2002-rk.github.io/Real_Portfolio/">Raj Kumar Nelluri</a> · AI Engineer</sub>

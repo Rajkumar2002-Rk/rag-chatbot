@@ -1,0 +1,84 @@
+[
+  {
+    "id": "q001",
+    "question": "What is the population of India?",
+    "expected_document": "india-wikipedia.pdf",
+    "expected_page": 1,
+    "reference_answer": "The population of India stood at approximately 1.4 billion people.",
+    "category": "factual"
+  },
+  {
+    "id": "q002",
+    "question": "What is the capital of India?",
+    "expected_document": "india-wikipedia.pdf",
+    "expected_page": 1,
+    "reference_answer": "The capital of India is New Delhi.",
+    "category": "factual"
+  },
+  {
+    "id": "q003",
+    "question": "What is the official language of India?",
+    "expected_document": "india-wikipedia.pdf",
+    "expected_page": 1,
+    "reference_answer": "Hindi and English are the official languages of India.",
+    "category": "factual"
+  },
+  {
+    "id": "q004",
+    "question": "What year did India gain independence?",
+    "expected_document": "india-wikipedia.pdf",
+    "expected_page": 2,
+    "reference_answer": "India gained independence on August 15, 1947.",
+    "category": "factual"
+  },
+  {
+    "id": "q005",
+    "question": "Who is the current Prime Minister of India?",
+    "expected_document": "india-wikipedia.pdf",
+    "expected_page": null,
+    "reference_answer": null,
+    "category": "factual"
+  },
+  {
+    "id": "q006",
+    "question": "What is the GDP of India?",
+    "expected_document": "india-wikipedia.pdf",
+    "expected_page": null,
+    "reference_answer": null,
+    "category": "numeric"
+  },
+  {
+    "id": "q007",
+    "question": "What is the currency of India?",
+    "expected_document": "india-wikipedia.pdf",
+    "expected_page": null,
+    "reference_answer": "The currency of India is the Indian Rupee (INR).",
+    "category": "factual"
+  },
+  {
+    "id": "q008",
+    "question": "What is the largest city in India by population?",
+    "expected_document": "india-wikipedia.pdf",
+    "expected_page": null,
+    "reference_answer": "Mumbai is the largest city in India by population.",
+    "category": "factual"
+  },
+  {
+    "id": "q009",
+    "question": "What is the weather like on Mars?",
+    "expected_document": null,
+    "expected_page": null,
+    "reference_answer": "I could not find relevant information in the uploaded document.",
+    "category": "out_of_scope",
+    "expect_fallback": true
+  },
+  {
+    "id": "q010",
+    "question": "Who wrote the Harry Potter series?",
+    "expected_document": null,
+    "expected_page": null,
+    "reference_answer": "I could not find relevant information in the uploaded document.",
+    "category": "out_of_scope",
+    "expect_fallback": true
+  }
+]
