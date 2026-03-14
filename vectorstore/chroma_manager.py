@@ -53,7 +53,7 @@ class ChromaManager:
 
     def _get_store(self):
         if self._store is None:
-          if self.persist_dir is None:
+          if not self.persist:
             # Upload/in-memory mode
             client = chromadb.EphemeralClient()
           else:
