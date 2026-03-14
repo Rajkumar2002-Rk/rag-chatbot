@@ -19,7 +19,8 @@ from langchain.schema import Document
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config.settings import EMBEDDING_MODEL, VECTORSTORE_DIR, OPENAI_API_KEY
-
+import chromadb
+from langchain_chroma import Chroma
 
 class ChromaManager:
     """
@@ -50,15 +51,19 @@ class ChromaManager:
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
-    def _get_store(self) -> Chroma:
+    def _get_store(self):
         if self._store is None:
-            kwargs: dict = {
-                "collection_name":   self.collection_name,
-                "embedding_function": self._embeddings,
-            }
-            if self.persist:
-                kwargs["persist_directory"] = self.persist_dir
-            self._store = Chroma(**kwargs)
+          if self.persist_dir is None:
+            # Upload/in-memory mode
+            client = chromadb.EphemeralClient()
+          else:
+            # Library/persistent mode
+            client = chromadb.PersistentClient(path=str(self.persist_dir))
+          self._store = Chroma(
+            client=client,
+            collection_name=self.collection_name,
+            embedding_function=self.embeddings,
+         )
         return self._store
 
     # ── Write ─────────────────────────────────────────────────────────────────
