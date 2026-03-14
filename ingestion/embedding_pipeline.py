@@ -15,6 +15,7 @@ from typing import List, Optional, Tuple
 from langchain.schema import Document
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from vectorstore.chroma_manager import ChromaManager
 from ingestion.pdf_loader   import load_directory, load_pdf, patch_metadata_source
 from ingestion.chunking     import split_documents
 from monitoring.logger      import log_ingestion_event
@@ -27,8 +28,6 @@ def ingest_directory(directory: str, collection_name: str = "library") -> int:
     Returns:
         Number of chunks indexed.
     """
-    # Import here to avoid circular imports at module level
-    from vectorstore.chroma_manager import ChromaManager
 
     t0 = time.time()
     print(f"[ingest] Loading PDFs from: {directory}")
@@ -73,7 +72,6 @@ def ingest_uploaded_pdf(
     Returns:
         (chunks, ChromaManager) — the chunks for display and the store for querying.
     """
-    from vectorstore.chroma_manager import ChromaManager
 
     t0 = time.time()
     documents = load_pdf(file_path)

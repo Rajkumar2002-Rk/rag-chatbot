@@ -1,3 +1,8 @@
+import argparse
+import sys
+from pathlib import Path
+
+
 """
 ingest.py
 ──────────
@@ -8,9 +13,6 @@ Usage:
     python ingest.py
     python ingest.py --dir data/sampledocs --collection library
 """
-import argparse
-import sys
-from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ingestion.embedding_pipeline import ingest_directory
