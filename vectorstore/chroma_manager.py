@@ -62,7 +62,7 @@ class ChromaManager:
           self._store = Chroma(
             client=client,
             collection_name=self.collection_name,
-            embedding_function=self.embeddings,
+            embedding_function=self._embeddings,
          )
         return self._store
 
