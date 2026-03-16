@@ -238,19 +238,20 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # ── Example questions (always visible) ────────────────────────────────
-    with st.expander("💡 Example Questions", expanded=True):
-        st.markdown("<small>Click to ask instantly:</small>", unsafe_allow_html=True)
-        example_questions = [
-            "What programming languages and frameworks does Raj Kumar know?",
-            "What machine learning projects has Raj built and deployed?",
-            "How does the Transformer model use attention instead of recurrence?",
-            "What are GPT-4's key capabilities and performance benchmarks?",
-        ]
-        for q in example_questions:
-            if st.button(q, key=f"sb_eq_{q}", use_container_width=True):
-                st.session_state.pending_question = q
-                st.rerun()
+    # ── Example questions (Library mode only) ─────────────────────────────
+    if mode == "📚 Library Documents":
+        with st.expander("💡 Example Questions", expanded=True):
+            st.markdown("<small>Click to ask instantly:</small>", unsafe_allow_html=True)
+            example_questions = [
+                "What programming languages and frameworks does Raj Kumar know?",
+                "What machine learning projects has Raj built and deployed?",
+                "How does the Transformer model use attention instead of recurrence?",
+                "What are GPT-4's key capabilities and performance benchmarks?",
+            ]
+            for q in example_questions:
+                if st.button(q, key=f"sb_eq_{q}", use_container_width=True):
+                    st.session_state.pending_question = q
+                    st.rerun()
 
     st.markdown("---")
 
@@ -369,15 +370,19 @@ for msg in st.session_state.messages:
 # ── Resolve prompt: either from example-question button or chat input ─────────
 prompt: Optional[str] = None
 
+# Always render chat input so it never disappears
+chat_input = st.chat_input(
+    "Ask a question about your documents…",
+    disabled=(active_store is None),
+)
+
+# Pending question (from sidebar button) takes priority over typed input
 pending = st.session_state.get("pending_question")
 if pending:
     st.session_state.pending_question = None
     prompt = pending
 else:
-    prompt = st.chat_input(
-        "Ask a question about your documents…",
-        disabled=(active_store is None),
-    )
+    prompt = chat_input
 
 # ── Handle prompt ─────────────────────────────────────────────────────────────
 if prompt:
