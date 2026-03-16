@@ -439,9 +439,7 @@ if prompt:
 
 
 # ── Empty state (no store loaded yet) ────────────────────────────────────────
-if active_store is None:
+if active_store is None and mode == "📚 Library Documents":
     st.info(
-        "👈 **Get started:**\n\n"
-        "- **Library mode** — documents are already indexed. Just ask a question below.\n"
-        "- **Upload mode** — drag and drop any PDF in the sidebar, then ask questions."
+        "👈 **Library not loaded.** Run `python ingest.py` inside the container to index your PDFs, then refresh."
     )
