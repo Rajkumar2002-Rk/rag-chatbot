@@ -409,12 +409,21 @@ if prompt:
 
         # Render answer
         if result.get("fallback_triggered"):
+            hint = (
+                "💡 **Tip:** Try a specific question like *\"What skills does Raj have?\"*, "
+                "*\"How does the Transformer use attention?\"*, or *\"What exams did GPT-4 pass?\"*"
+                if mode == "📚 Library Documents"
+                else
+                "💡 **Tip:** Try a specific question about your uploaded document, "
+                "e.g., *\"Who are the parties in this contract?\"* or *\"What is the total amount?\"*"
+            )
             st.markdown(
                 f"<div class='fallback-box'>{answer}<br>"
                 f"<span class='guardrail-badge'>⚠️ guardrail triggered — "
                 f"{result.get('guardrail_reason', '')}</span></div>",
                 unsafe_allow_html=True,
             )
+            st.markdown(hint)
         else:
             st.markdown(answer)
             if sources:

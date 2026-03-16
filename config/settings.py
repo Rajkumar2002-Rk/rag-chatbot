@@ -27,7 +27,7 @@ RETRIEVAL_LAMBDA: float = float(os.getenv("RETRIEVAL_LAMBDA", "0.7"))
 
 # ── Hallucination Guardrails ──────────────────────────────────────────────────
 # Minimum cosine similarity [0–1] for retrieved chunks to be trusted
-SIMILARITY_THRESHOLD: float = float(os.getenv("SIMILARITY_THRESHOLD", "0.30"))
+SIMILARITY_THRESHOLD: float = float(os.getenv("SIMILARITY_THRESHOLD", "0.15"))
 # Minimum total characters of context required before calling the LLM
 MIN_CONTEXT_LENGTH: int = int(os.getenv("MIN_CONTEXT_LENGTH", "50"))
 
