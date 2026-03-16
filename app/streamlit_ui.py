@@ -238,6 +238,22 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # ── Example questions (always visible) ────────────────────────────────
+    with st.expander("💡 Example Questions", expanded=True):
+        st.markdown("<small>Click to ask instantly:</small>", unsafe_allow_html=True)
+        example_questions = [
+            "What programming languages and frameworks does Raj Kumar know?",
+            "What machine learning projects has Raj built and deployed?",
+            "How does the Transformer model use attention instead of recurrence?",
+            "What are GPT-4's key capabilities and performance benchmarks?",
+        ]
+        for q in example_questions:
+            if st.button(q, key=f"sb_eq_{q}", use_container_width=True):
+                st.session_state.pending_question = q
+                st.rerun()
+
+    st.markdown("---")
+
     # ── Clear chat ─────────────────────────────────────────────────────────
     if st.button("🗑️ Clear chat"):
         st.session_state.messages = []
@@ -294,18 +310,16 @@ if not st.session_state.messages:
 """)
 
     with col_right:
-        with st.expander("💡 Example Questions", expanded=True):
-            st.markdown("Click any question to send it instantly:")
-            example_questions = [
-                "What programming languages and frameworks does Raj Kumar know?",
-                "What machine learning projects has Raj built and deployed?",
-                "How does the Transformer model use attention instead of recurrence?",
-                "What are GPT-4's key capabilities and performance benchmarks?",
-            ]
-            for q in example_questions:
-                if st.button(q, key=f"eq_{q}", use_container_width=True):
-                    st.session_state.pending_question = q
-                    st.rerun()
+        with st.expander("📄 Library Documents", expanded=True):
+            st.markdown("""
+**3 documents are pre-loaded:**
+
+- 📋 **Raj_Resume.pdf** — Candidate profile, skills, projects
+- 🧠 **Attention_Is_All_You_Need.pdf** — Original Transformer paper
+- 🤖 **GPT4_Technical_Report.pdf** — GPT-4 capabilities & benchmarks
+
+👈 Use the **Example Questions** in the sidebar to try them instantly.
+""")
 
     # Architecture pipeline
     st.markdown("---")
