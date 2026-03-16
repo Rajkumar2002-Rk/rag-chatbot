@@ -1,6 +1,6 @@
-# 🤖 Enterprise RAG Chatbot v2 — Production AI Document Intelligence
+# 🤖 Enterprise RAG Chatbot — Production AI Document Intelligence
 
-A production-grade **Retrieval-Augmented Generation (RAG)** system upgraded with evaluation, observability, multi-document support, hallucination guardrails, and a modular architecture.
+A production-grade **Retrieval-Augmented Generation (RAG)** system with evaluation, observability, multi-document support, hallucination guardrails, and a recruiter-friendly UI — containerized with Docker and deployed on AWS EC2.
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python)](https://python.org)
 [![LangChain](https://img.shields.io/badge/LangChain-0.3-1C3C3C?style=flat-square)](https://langchain.com)
@@ -36,7 +36,7 @@ A production-grade **Retrieval-Augmented Generation (RAG)** system upgraded with
      ┌───────────────────────▼───────────────────────┐
      │         vectorstore/chroma_manager.py          │
      │  similarity_search_with_scores()               │
-     │  [persisted library | in-memory uploads]       │
+     │  [persisted library | temp-dir uploads]        │
      └───────────────────────┬───────────────────────┘
                              │
      ┌───────────────────────▼───────────────────────┐
@@ -59,46 +59,50 @@ A production-grade **Retrieval-Augmented Generation (RAG)** system upgraded with
 ```
 PDF Files
    ↓
-ingestion/pdf_loader.py       ← PyPDFLoader, source metadata patching
+ingestion/pdf_loader.py         ← PyPDFLoader, source metadata patching
    ↓
-ingestion/chunking.py         ← RecursiveCharacterTextSplitter (1000/200)
+ingestion/chunking.py           ← RecursiveCharacterTextSplitter (1000/200)
    ↓
 ingestion/embedding_pipeline.py ← OpenAI text-embedding-3-small (1536-dim)
    ↓
-vectorstore/chroma_manager.py ← ChromaDB (persisted or in-memory)
+vectorstore/chroma_manager.py   ← ChromaDB PersistentClient (persisted or temp-dir)
    ↓
-retrieval/retriever.py        ← MMR (fetch_k=20 → rerank → top-5)
+retrieval/retriever.py          ← MMR (fetch_k=20 → rerank → top-5)
    ↓
-retrieval/reranker.py         ← Score-based filtering (threshold=0.30)
+retrieval/reranker.py           ← Score-based filtering (threshold=0.15)
    ↓  [GUARDRAIL: fallback if low confidence]
-api/rag_api.py                ← format_docs_with_metadata() + strict prompt
+api/rag_api.py                  ← format_docs_with_metadata() + strict prompt
    ↓
-GPT-3.5-turbo                 ← Grounded answer with [SOURCE N: file | Page]
+GPT-3.5-turbo                   ← Grounded answer with [SOURCE N: file | Page]
    ↓
-monitoring/logger.py          ← JSON log entry to logs/rag_queries.log
+monitoring/logger.py            ← JSON log entry to logs/rag_queries.log
 ```
 
 ---
 
-## ✨ Production Improvements (v1 → v2)
+## ✨ Features
 
-| Improvement | What Changed |
+| Feature | Description |
 |---|---|
-| **Modular Architecture** | Business logic moved out of Streamlit into `api/`, `ingestion/`, `retrieval/`, `vectorstore/` modules |
-| **Retrieval Evaluation** | `evaluation/run_rag_eval.py` runs benchmark questions and measures hit rate, citation accuracy, latency |
-| **Observability** | Structured JSON logging to `logs/rag_queries.log`; real-time metrics dashboard in Streamlit sidebar |
-| **Multi-Document Support** | Upload multiple PDFs; select/deselect specific documents for retrieval filtering |
-| **Hallucination Guardrails** | Similarity threshold + minimum context length check before calling LLM; fallback response on failure |
-| **Score-Based Reranking** | `reranker.py` filters chunks below threshold before LLM context injection |
+| **Library Mode** | Query pre-indexed PDF documents with multi-doc filtering |
+| **Upload Mode** | Upload any PDF and query it instantly (temp-dir storage, no persistence) |
+| **Citation-Grounded Answers** | Every response includes `[SOURCE N: filename \| Page]` references |
+| **Hallucination Guardrails** | Similarity threshold + min context length check before LLM call |
+| **MMR Retrieval** | Maximum Marginal Relevance reduces redundant chunks (fetch_k=20, top-5) |
+| **Session Metrics Dashboard** | Real-time latency, token usage, success rate, top documents |
+| **Recruiter-Friendly UI** | Welcome guide, clickable example questions, architecture pipeline display |
+| **Structured Logging** | Every query logged as JSON to `logs/rag_queries.log` |
+| **Modular Architecture** | Business logic split into `api/`, `ingestion/`, `retrieval/`, `vectorstore/` |
+| **Docker + AWS EC2** | Containerized with persistent vectorstore volume, live public demo |
 
 ---
 
 ## 📁 Project Structure
 
 ```
-rag-chatbot-v2/
+rag-chatbot/
 ├── app/
-│   └── streamlit_ui.py          # Streamlit UI (library + upload + metrics)
+│   └── streamlit_ui.py          # Streamlit UI (library + upload + metrics + welcome guide)
 ├── api/
 │   └── rag_api.py               # Core RAG logic: run_query(), build_rag_chain()
 ├── ingestion/
@@ -120,12 +124,11 @@ rag-chatbot-v2/
 │   └── rag_prompt.txt           # Strict citation prompt template
 ├── config/
 │   └── settings.py              # Centralized env-based configuration
+├── data/sampledocs/             # Library PDFs (Raj_Resume, Attention, GPT-4)
+├── vectorstore_data/            # ChromaDB persisted store (volume-mounted)
 ├── logs/                        # rag_queries.log written here
-├── data/sampledocs/             # Add your PDFs here
-├── vectorstore/                 # ChromaDB persisted store
 ├── ingest.py                    # Top-level ingestion script
 ├── Dockerfile
-├── .dockerignore
 ├── .env.example
 └── requirements.txt
 ```
@@ -155,23 +158,27 @@ streamlit run app/streamlit_ui.py
 
 ---
 
-## 🐳 Setup — Docker
+## 🐳 Setup — Docker (Production)
 
 ```bash
-docker build -t rag-chatbot:latest .
+# Build the image
+docker build -t rag-chatbot-app .
 
-docker volume create rag-vectorstore
+# Run with persistent vectorstore volume
+docker run -d \
+  --name rag-chatbot-app \
+  -p 8501:8501 \
+  --env-file .env \
+  -v $(pwd)/vectorstore_data:/app/vectorstore_data \
+  rag-chatbot-app
 
-docker run -d --name rag-chatbot-app --restart unless-stopped \
-  -p 8501:8501 --env-file .env \
-  -v rag-vectorstore:/app/vectorstore \
-  rag-chatbot:latest
-
-# Index your PDFs into the running container
+# Index PDFs into the running container
 docker exec rag-chatbot-app python ingest.py
 ```
 
 Open `http://localhost:8501`
+
+> **Note:** The `vectorstore_data/` directory is volume-mounted so embeddings persist across container restarts. To re-index with new PDFs, clear the volume with `sudo rm -rf vectorstore_data/*` then re-run `ingest.py`.
 
 ---
 
@@ -194,18 +201,6 @@ python evaluation/run_rag_eval.py \
 - **Fallback Accuracy** — % of out-of-scope questions correctly handled by guardrail
 - **Avg Latency (ms)** — mean end-to-end response time
 
-**Adding your own benchmark questions** — edit `evaluation/benchmark_questions.json`:
-```json
-{
-  "id": "q011",
-  "question": "What is the population of China?",
-  "expected_document": "china-wikipedia.pdf",
-  "expected_page": 2,
-  "reference_answer": "The population of China in 2025 was estimated to be 1,404,890,000.",
-  "category": "factual"
-}
-```
-
 ---
 
 ## 🔬 Key Implementation Details
@@ -213,8 +208,14 @@ python evaluation/run_rag_eval.py \
 ### Hallucination Guardrails
 Three conditions trigger the fallback response:
 1. No documents retrieved from ChromaDB
-2. Best similarity score < `SIMILARITY_THRESHOLD` (default: 0.30)
+2. Best similarity score < `SIMILARITY_THRESHOLD` (default: 0.15)
 3. Total context length < `MIN_CONTEXT_LENGTH` (default: 50 chars)
+
+When triggered, the UI shows a helpful tip guiding the user toward specific questions that retrieve well.
+
+### ChromaDB Storage Strategy
+- **Library mode** — `PersistentClient(path=VECTORSTORE_DIR)` with Docker volume mount for persistence across restarts
+- **Upload mode** — `PersistentClient(path=tempfile.mkdtemp())` for isolated per-session temp storage (avoids ChromaDB 0.5.x EphemeralClient SQLite bug)
 
 ### Multi-Document Filtering
 ChromaDB's `filter` parameter restricts retrieval to selected documents:
@@ -226,13 +227,13 @@ filter={"source": {"$in": ["doc1.pdf", "doc2.pdf"]}}
 Every query writes a JSON line to `logs/rag_queries.log`:
 ```json
 {
-  "timestamp": "2026-03-13T14:22:01.123Z",
-  "query": "What is the population of India?",
-  "response_time_ms": 1240,
-  "retrieval_time_ms": 180,
-  "num_chunks": 5,
-  "source_documents": ["india-wikipedia.pdf"],
-  "token_usage_estimate": 312
+  "timestamp": "2026-03-16T05:12:29Z",
+  "query": "What programming languages does Raj know?",
+  "response_time_ms": 1180,
+  "retrieval_time_ms": 192,
+  "num_chunks": 1,
+  "source_documents": ["Raj_Resume.pdf"],
+  "token_usage_estimate": 284
 }
 ```
 
@@ -240,17 +241,19 @@ Every query writes a JSON line to `logs/rag_queries.log`:
 
 ## ⚙️ Configuration
 
-All settings in `config/settings.py` (overridable via `.env`):
+All settings in `config/settings.py` — overridable via `.env`:
 
 | Variable | Default | Description |
 |---|---|---|
+| `OPENAI_API_KEY` | — | Required — your OpenAI API key |
 | `CHUNK_SIZE` | 1000 | Characters per chunk |
 | `CHUNK_OVERLAP` | 200 | Overlap between chunks |
 | `RETRIEVAL_K` | 5 | Chunks returned to LLM |
 | `RETRIEVAL_FETCH_K` | 20 | MMR candidates before reranking |
 | `RETRIEVAL_LAMBDA` | 0.7 | Relevance vs diversity balance |
-| `SIMILARITY_THRESHOLD` | 0.30 | Min score to trust a chunk |
+| `SIMILARITY_THRESHOLD` | 0.15 | Min similarity score to trust a chunk |
 | `MIN_CONTEXT_LENGTH` | 50 | Min chars of context before LLM call |
+| `VECTORSTORE_DIR` | `vectorstore_data/` | Path to ChromaDB persisted store |
 
 ---
 
