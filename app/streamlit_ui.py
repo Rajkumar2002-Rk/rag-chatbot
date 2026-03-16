@@ -297,10 +297,10 @@ if not st.session_state.messages:
         with st.expander("💡 Example Questions", expanded=True):
             st.markdown("Click any question to send it instantly:")
             example_questions = [
-                "What topics are covered in this document?",
-                "Summarize the key points from page 2.",
-                "What conclusions does the document present?",
-                "Explain the main idea of this report.",
+                "What programming languages and frameworks does Raj Kumar know?",
+                "What machine learning projects has Raj built and deployed?",
+                "How does the Transformer model use attention instead of recurrence?",
+                "What are GPT-4's key capabilities and performance benchmarks?",
             ]
             for q in example_questions:
                 if st.button(q, key=f"eq_{q}", use_container_width=True):
