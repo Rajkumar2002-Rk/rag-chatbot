@@ -59,6 +59,24 @@ st.markdown("""
     background: #7f1d1d; color: #fca5a5;
     border-radius: 4px; padding: 2px 8px; font-size: 0.75em;
 }
+/* Welcome guide cards */
+.guide-card {
+    background: #0f172a;
+    border: 1px solid #1e3a5f;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 8px;
+}
+.example-q {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin: 4px 0;
+    font-size: 0.9em;
+    color: #94a3b8;
+    cursor: pointer;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -74,6 +92,7 @@ def _init_session():
         "upload_store":      None,
         "upload_filenames":  [],   # currently loaded file names
         "selected_docs":     [],   # user-selected subset for filtering
+        "pending_question":  None, # set by example-question buttons
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -98,7 +117,7 @@ def _load_library() -> Optional[ChromaManager]:
         return manager
     except Exception:
         return None
-    
+
 def _render_sources(sources: List[Dict]) -> None:
     """Render a collapsed source-citation panel below an answer."""
     with st.expander(f"📎 Sources ({len(sources)} chunks retrieved)", expanded=False):
@@ -116,7 +135,6 @@ def _render_sources(sources: List[Dict]) -> None:
                     f"<small style='color:#94a3b8'>{chunk['preview']}…</small>",
                     unsafe_allow_html=True,
                 )
-
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -247,33 +265,108 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 # Main chat interface
 # ══════════════════════════════════════════════════════════════════════════════
+
+# ── Title ─────────────────────────────────────────────────────────────────────
 st.markdown("# 🤖 Enterprise RAG Chatbot")
-st.caption(
-    "Library mode: query pre-loaded documents. "
-    "Upload mode: upload any PDF and ask questions instantly."
+
+# ── System description (always visible) ───────────────────────────────────────
+st.markdown(
+    "This application demonstrates a **Retrieval-Augmented Generation (RAG)** system "
+    "for document intelligence. Users can upload PDF documents or query a pre-loaded "
+    "document library. The system retrieves relevant document sections using vector "
+    "search and generates grounded answers with citations."
 )
 
-# Determine active vector store
+# ── Welcome guide — shown only when chat is empty ─────────────────────────────
+if not st.session_state.messages:
+    st.markdown("---")
+
+    # How to Try + Example Questions side by side
+    col_left, col_right = st.columns([1, 1], gap="large")
+
+    with col_left:
+        with st.expander("🚀 How to Try the Demo", expanded=True):
+            st.markdown("""
+1. **Library Mode** — Select *Library Documents* in the sidebar to query documents already indexed in the system.
+2. **Upload Mode** — Select *Upload Your PDF* and drag in any PDF to ask questions about it instantly.
+3. **Ask Questions** — Type your question in the chat box at the bottom of the page.
+4. **View Citations** — Every answer includes the source document name and page number.
+""")
+
+    with col_right:
+        with st.expander("💡 Example Questions", expanded=True):
+            st.markdown("Click any question to send it instantly:")
+            example_questions = [
+                "What topics are covered in this document?",
+                "Summarize the key points from page 2.",
+                "What conclusions does the document present?",
+                "Explain the main idea of this report.",
+            ]
+            for q in example_questions:
+                if st.button(q, key=f"eq_{q}", use_container_width=True):
+                    st.session_state.pending_question = q
+                    st.rerun()
+
+    # Architecture pipeline
+    st.markdown("---")
+    st.caption(
+        "**Architecture:** &nbsp; PDF &nbsp;→&nbsp; Text Chunking &nbsp;→&nbsp; "
+        "OpenAI Embeddings &nbsp;→&nbsp; ChromaDB Vector Search &nbsp;→&nbsp; "
+        "MMR Retrieval &nbsp;→&nbsp; LLM Answer Generation"
+    )
+
+    # System details — collapsed by default, clean and unobtrusive
+    with st.expander("⚙️ System Details", expanded=False):
+        d_col1, d_col2 = st.columns(2)
+        with d_col1:
+            st.markdown("""
+| Component | Technology |
+|---|---|
+| Framework | LangChain |
+| Embeddings | OpenAI text-embedding-3-small |
+| Vector Database | ChromaDB |
+""")
+        with d_col2:
+            st.markdown("""
+| Component | Technology |
+|---|---|
+| Retrieval Strategy | MMR (Maximum Marginal Relevance) |
+| Language Model | GPT-3.5-turbo |
+| Deployment | Docker on AWS EC2 |
+""")
+
+    st.markdown("---")
+
+# ── Determine active vector store ─────────────────────────────────────────────
 active_store: Optional[ChromaManager] = None
 if mode == "📚 Library Documents":
     active_store = st.session_state.get("library_store")
 else:
     active_store = st.session_state.get("upload_store")
 
-# Render chat history
+# ── Render chat history ───────────────────────────────────────────────────────
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if msg.get("sources"):
-            _render_sources(msg["sources"])   # defined below
+            _render_sources(msg["sources"])
 
 
+# ── Resolve prompt: either from example-question button or chat input ─────────
+prompt: Optional[str] = None
 
-# ── Chat input ────────────────────────────────────────────────────────────────
-if prompt := st.chat_input(
-    "Ask a question about your documents…",
-    disabled=(active_store is None),
-):
+pending = st.session_state.get("pending_question")
+if pending:
+    st.session_state.pending_question = None
+    prompt = pending
+else:
+    prompt = st.chat_input(
+        "Ask a question about your documents…",
+        disabled=(active_store is None),
+    )
+
+# ── Handle prompt ─────────────────────────────────────────────────────────────
+if prompt:
     if active_store is None:
         st.warning("No documents loaded yet. Please index your library or upload a PDF.")
         st.stop()
@@ -331,10 +424,10 @@ if prompt := st.chat_input(
     )
 
 
-# ── Empty state ───────────────────────────────────────────────────────────────
+# ── Empty state (no store loaded yet) ────────────────────────────────────────
 if active_store is None:
     st.info(
         "👈 **Get started:**\n\n"
-        "- **Library mode** — run `python ingest.py` to index your PDFs, then ask questions.\n"
-        "- **Upload mode** — drag and drop any PDF in the sidebar."
+        "- **Library mode** — documents are already indexed. Just ask a question below.\n"
+        "- **Upload mode** — drag and drop any PDF in the sidebar, then ask questions."
     )
