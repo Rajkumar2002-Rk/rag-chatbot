@@ -10,6 +10,12 @@ A production-grade **Retrieval-Augmented Generation (RAG)** system with evaluati
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker)](https://docker.com)
 [![AWS EC2](https://img.shields.io/badge/AWS-EC2-FF9900?style=flat-square&logo=amazonaws)](https://aws.amazon.com/ec2/)
 
+
+## 🚀 Live Demo
+👉 **[chatbot.rajkumarai.dev](https://chatbot.rajkumarai.dev)** — deployed on AWS EC2
+
+> Portfolio: [rajkumarai.dev](https://rajkumarai.dev)
+
 ---
 
 ## 🏗️ System Architecture
