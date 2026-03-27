@@ -1,0 +1,143 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.6.4">
+  <diagram id="rag-arch-v3" name="RAG Architecture v3">
+    <mxGraphModel dx="1531" dy="682" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="bg" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="860" width="1511" x="-51" as="geometry" />
+        </mxCell>
+        <mxCell id="ttl" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1;fontSize=20;fontColor=#F1F5F9;" value="Enterprise RAG Chatbot — System Architecture" vertex="1">
+          <mxGeometry height="36" width="1220" x="20" y="12" as="geometry" />
+        </mxCell>
+        <mxCell id="rl1" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1;fontSize=10;fontColor=#475569;" value="INGESTION&lt;br/&gt;PIPELINE" vertex="1">
+          <mxGeometry height="220" width="30" x="-10" y="24.5" as="geometry" />
+        </mxCell>
+        <mxCell id="rl2" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1;fontSize=10;fontColor=#475569;" value="QUERY&lt;br/&gt;PIPELINE" vertex="1">
+          <mxGeometry height="230" width="30" x="-10" y="315" as="geometry" />
+        </mxCell>
+        <mxCell id="input" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F2744;strokeColor=#3B82F6;fontColor=#E2E8F0;fontSize=13;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:15px;color:#60A5FA;font-family:Helvetica;&quot;&gt;📄  INPUT&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• PDF Library (persistent)&lt;br/&gt;• User Upload (session)&lt;br/&gt;• 117 pages | 445 chunks&lt;br/&gt;• Streamlit file handler&lt;br/&gt;" vertex="1">
+          <mxGeometry height="139" width="205" x="40" y="65" as="geometry" />
+        </mxCell>
+        <mxCell id="ingest" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F2744;strokeColor=#3B82F6;fontColor=#E2E8F0;fontSize=13;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:15px;color:#60A5FA;font-family:Helvetica;&quot;&gt;⚙️  INGESTION&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• PyPDFLoader&lt;br/&gt;• Chunking: 1000 / 200&lt;br/&gt;• Recursive splitting&lt;br/&gt;• Metadata cleanup&lt;br/&gt;" vertex="1">
+          <mxGeometry height="139" width="205" x="270" y="65" as="geometry" />
+        </mxCell>
+        <mxCell id="embed" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E0A4C;strokeColor=#7C3AED;fontColor=#E2E8F0;fontSize=13;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size: 15px; color: rgb(167, 139, 250); font-family: Helvetica;&quot;&gt;🔢  EMBEDDING&lt;/b&gt;&lt;br&gt;&lt;br&gt;• text-embedding-3-small&lt;br&gt;• Batch + real-time&lt;br&gt;• OpenAI API" vertex="1">
+          <mxGeometry height="139" width="205" x="500" y="65" as="geometry" />
+        </mxCell>
+        <mxCell id="vs_grp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0A1628;strokeColor=#334155;fontColor=#94A3B8;fontSize=11;align=center;verticalAlign=top;spacingTop=6;arcSize=4;dashed=0;" value="VECTOR STORAGE" vertex="1">
+          <mxGeometry height="250" width="430" x="728" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="vs_p" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#052E1C;strokeColor=#10B981;fontColor=#E2E8F0;fontSize=13;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:15px;color:#34D399;font-family:Helvetica;&quot;&gt;🗄️  PERSISTENT&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• ChromaDB (HNSW, cosine)&lt;br/&gt;• SQLite backend&lt;br/&gt;• AWS volume mount&lt;br/&gt;• Library collection&lt;br/&gt;" vertex="1">
+          <mxGeometry height="139" width="190" x="742" y="82" as="geometry" />
+        </mxCell>
+        <mxCell id="vs_e" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1A0A3C;strokeColor=#8B5CF6;fontColor=#E2E8F0;fontSize=13;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:15px;color:#C084FC;font-family:Helvetica;&quot;&gt;⚡  EPHEMERAL&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• Temp ChromaDB&lt;br/&gt;• Session-scoped storage&lt;br/&gt;• Auto-cleared on exit&lt;br/&gt;• Upload collection&lt;br/&gt;" vertex="1">
+          <mxGeometry height="139" width="190" x="958" y="82" as="geometry" />
+        </mxCell>
+        <mxCell id="ret" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#042F2E;strokeColor=#00D4AA;fontColor=#E2E8F0;fontSize=14;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;strokeWidth=3;arcSize=6;" value="&lt;b style=&quot;font-size: 16px; color: rgb(0, 212, 170); font-family: Helvetica;&quot;&gt;🔍  RETRIEVAL ENGINE&lt;/b&gt;&lt;br&gt;&lt;br&gt;• MMR reranking  (λ = 0.7)&lt;br&gt;• Fetch 20 → Top 5&amp;nbsp;&lt;div&gt;• Similarity threshold: 0.15&lt;br&gt;• Reranking&lt;/div&gt;" vertex="1">
+          <mxGeometry height="139" width="250" x="40" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="core_badge" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontStyle=1;fontSize=10;fontColor=#00D4AA;" value="● CORE COMPONENT" vertex="1">
+          <mxGeometry height="22" width="120" x="52" y="511" as="geometry" />
+        </mxCell>
+        <mxCell id="guard" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3B0000;strokeColor=#EF4444;fontColor=#E2E8F0;fontSize=13;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;strokeWidth=2;" value="&lt;b style=&quot;font-size: 15px; color: rgb(248, 113, 113); font-family: Helvetica;&quot;&gt;🛡️  GUARDRAIL&lt;/b&gt;&lt;br&gt;&lt;br&gt;• Reject low-confidence&lt;br&gt;• Context &amp;lt; 50 chars (reject)&lt;br&gt;• Skip LLM (cost optimization)&lt;br&gt;• Return fallback response" vertex="1">
+          <mxGeometry height="139" width="205" x="325" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="pass_b" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1;fontSize=10;fontColor=#4ADE80;" value="✓ PASS" vertex="1">
+          <mxGeometry height="22" width="95" x="323" y="511" as="geometry" />
+        </mxCell>
+        <mxCell id="rej_b" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1;fontSize=10;fontColor=#F87171;" value="✗ REJECT" vertex="1">
+          <mxGeometry height="22" width="95" x="425" y="511" as="geometry" />
+        </mxCell>
+        <mxCell id="llm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1C0A00;strokeColor=#F59E0B;fontColor=#E2E8F0;fontSize=13;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size: 15px; color: rgb(251, 191, 36); font-family: Helvetica;&quot;&gt;🤖  LLM&lt;/b&gt;&lt;br&gt;&lt;br&gt;• GPT-3.5 Turbo (temp=0)&lt;br&gt;• Context-grounded responses&lt;br&gt;• Enforced source citations&lt;br&gt;• Rejects off-topic queries" vertex="1">
+          <mxGeometry height="139" width="205" x="595" y="360.5" as="geometry" />
+        </mxCell>
+        <mxCell id="resp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F2744;strokeColor=#3B82F6;fontColor=#E2E8F0;fontSize=13;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:15px;color:#60A5FA;font-family:Helvetica;&quot;&gt;💬  RESPONSE&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• Answer + citations&lt;br/&gt;• Source doc + page ref&lt;br/&gt;• Streamlit chat UI&lt;br/&gt;• Fallback on low match&lt;br/&gt;" vertex="1">
+          <mxGeometry height="139" width="205" x="855" y="360.5" as="geometry" />
+        </mxCell>
+        <mxCell id="met_bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0B1628;strokeColor=#334155;fontColor=#94A3B8;fontSize=11;align=center;verticalAlign=top;spacingTop=6;arcSize=4;dashed=0;" value="METRICS &amp; PERFORMANCE" vertex="1">
+          <mxGeometry height="560" width="200" x="1180" y="55" as="geometry" />
+        </mxCell>
+        <mxCell id="met1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#374151;fontColor=#E2E8F0;fontSize=12;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size: 13px; color: rgb(148, 163, 184); font-family: Helvetica;&quot;&gt;📊  PERFORMANCE&lt;/b&gt;&lt;br&gt;&lt;br&gt;• End-to-end latency: ~2s&lt;br&gt;• Retrieval: ~200ms&lt;div&gt;&lt;br/&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="139" width="180" x="1190" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="met2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#374151;fontColor=#E2E8F0;fontSize=12;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:13px;color:#94A3B8;font-family:Helvetica;&quot;&gt;📦  DATA&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• 445 total chunks&lt;br/&gt;• 3 library documents&lt;br/&gt;• chunk size: 1000&lt;br/&gt;• overlap: 200&lt;br/&gt;" vertex="1">
+          <mxGeometry height="139" width="180" x="1190" y="285" as="geometry" />
+        </mxCell>
+        <mxCell id="met3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#374151;fontColor=#E2E8F0;fontSize=12;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:13px;color:#94A3B8;font-family:Helvetica;&quot;&gt;✅  EVALUATION&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• Accuracy metrics&lt;br/&gt;• Guardrail hit rate&lt;br/&gt;• Fallback frequency&lt;br/&gt;• Citation coverage&lt;br/&gt;" vertex="1">
+          <mxGeometry height="139" width="180" x="1192" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="inf_bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0B1628;strokeColor=#334155;fontColor=#94A3B8;fontSize=11;align=center;verticalAlign=top;spacingTop=6;arcSize=4;dashed=0;" value="INFRASTRUCTURE PRODUCTION DEPLOYMENT&amp;nbsp; STACK" vertex="1">
+          <mxGeometry height="110" width="990" x="40" y="645" as="geometry" />
+        </mxCell>
+        <mxCell id="inf1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#374151;fontColor=#E2E8F0;fontSize=12;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:12px;color:#94A3B8;font-family:Helvetica;&quot;&gt;☁️  AWS EC2&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• Docker container&lt;br/&gt;• t2.medium instance&lt;br/&gt;" vertex="1">
+          <mxGeometry height="75" width="180" x="55" y="672" as="geometry" />
+        </mxCell>
+        <mxCell id="inf2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#374151;fontColor=#E2E8F0;fontSize=12;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:12px;color:#94A3B8;font-family:Helvetica;&quot;&gt;💾  STORAGE&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• EBS persistent volume&lt;br/&gt;• vectorstore_data mount&lt;br/&gt;" vertex="1">
+          <mxGeometry height="75" width="180" x="255" y="672" as="geometry" />
+        </mxCell>
+        <mxCell id="inf3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#374151;fontColor=#E2E8F0;fontSize=12;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:12px;color:#94A3B8;font-family:Helvetica;&quot;&gt;🔑  APIs&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• OpenAI Embeddings&lt;br/&gt;• OpenAI Chat API&lt;br/&gt;" vertex="1">
+          <mxGeometry height="75" width="180" x="455" y="672" as="geometry" />
+        </mxCell>
+        <mxCell id="inf4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#374151;fontColor=#E2E8F0;fontSize=12;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:12px;color:#94A3B8;font-family:Helvetica;&quot;&gt;🌐  FRONTEND&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• Streamlit (port 8501)&lt;br/&gt;• Session state mgmt&lt;br/&gt;" vertex="1">
+          <mxGeometry height="75" width="180" x="655" y="672" as="geometry" />
+        </mxCell>
+        <mxCell id="inf5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#374151;fontColor=#E2E8F0;fontSize=12;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;arcSize=4;" value="&lt;b style=&quot;font-size:12px;color:#94A3B8;font-family:Helvetica;&quot;&gt;🐳  RUNTIME&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• Python 3.11&lt;br/&gt;• LangChain + ChromaDB&lt;br/&gt;" vertex="1">
+          <mxGeometry height="75" width="160" x="855" y="672" as="geometry" />
+        </mxCell>
+        <mxCell id="a1" edge="1" parent="1" source="input" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#3B82F6;strokeWidth=2;fontColor=#94A3B8;fontSize=11;" target="ingest" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" edge="1" parent="1" source="ingest" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#3B82F6;strokeWidth=2;fontColor=#94A3B8;fontSize=11;" target="embed" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a3" edge="1" parent="1" source="embed" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#7C3AED;strokeWidth=2;fontColor=#94A3B8;fontSize=11;" target="vs_p" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a3b" edge="1" parent="1" source="embed" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.965;exitY=1.021;exitDx=0;exitDy=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;dashPattern=6 3;fontColor=#94A3B8;fontSize=11;exitPerimeter=0;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="701" y="207" />
+              <mxPoint x="701" y="267" />
+              <mxPoint x="993" y="267" />
+            </Array>
+            <mxPoint x="701" y="196.0000000000001" as="sourcePoint" />
+            <mxPoint x="993" y="228" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a4" edge="1" parent="1" source="vs_p" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.2;entryY=0;entryDx=0;entryDy=0;strokeColor=#10B981;strokeWidth=2;dashed=1;dashPattern=6 3;fontColor=#94A3B8;fontSize=11;" target="ret" value="vector search">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a4b" edge="1" parent="1" source="vs_e" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.8;exitY=1;exitDx=0;exitDy=0;entryX=0.1;entryY=0;entryDx=0;entryDy=0;strokeColor=#8B5CF6;strokeWidth=2;dashed=1;dashPattern=6 3;fontColor=#94A3B8;fontSize=11;" target="ret" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a5" edge="1" parent="1" source="ret" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#00D4AA;strokeWidth=2;fontColor=#94A3B8;fontSize=11;" target="guard" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a6" edge="1" parent="1" source="guard" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#4ADE80;strokeWidth=2;fontColor=#94A3B8;fontSize=11;" target="llm" value="PASS">
+          <mxGeometry relative="1" x="-0.0132" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a7" edge="1" parent="1" source="llm" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#F59E0B;strokeWidth=2;fontColor=#94A3B8;fontSize=11;" target="resp" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a8" edge="1" parent="1" source="guard" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;strokeColor=#EF4444;strokeWidth=2;dashed=1;dashPattern=6 3;fontColor=#94A3B8;fontSize=11;" target="resp" value="REJECT">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="530" y="531" />
+              <mxPoint x="693" y="531" />
+              <mxPoint x="693" y="517" />
+              <mxPoint x="855" y="517" />
+            </Array>
+            <mxPoint x="530" y="516" as="sourcePoint" />
+            <mxPoint x="855" y="516.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Wuz9vxMPlM2LPwHyR0k5-1" edge="1" parent="1" source="llm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="llm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
