@@ -31,6 +31,9 @@ FALLBACK_RESPONSE = (
 def get_mmr_retriever(
     vector_store: Chroma,
     filter_docs: Optional[List[str]] = None,
+    k: int = RETRIEVAL_K,
+    fetch_k: int = RETRIEVAL_FETCH_K,
+    lambda_mult: float = RETRIEVAL_LAMBDA,
 ):
     """
     Build an MMR retriever from a Chroma store.
@@ -41,12 +44,15 @@ def get_mmr_retriever(
       them to maximize both relevance AND diversity, giving the LLM broader context.
 
     Args:
-        filter_docs: Restrict retrieval to these source filenames (multi-doc support).
+        filter_docs:  Restrict retrieval to these source filenames (multi-doc support).
+        k:            Number of chunks to return (overrides RETRIEVAL_K).
+        fetch_k:      Candidate pool size for MMR (overrides RETRIEVAL_FETCH_K).
+        lambda_mult:  MMR diversity weight (overrides RETRIEVAL_LAMBDA).
     """
     search_kwargs: dict = {
-        "k":           RETRIEVAL_K,
-        "fetch_k":     RETRIEVAL_FETCH_K,
-        "lambda_mult": RETRIEVAL_LAMBDA,
+        "k":           k,
+        "fetch_k":     fetch_k,
+        "lambda_mult": lambda_mult,
     }
     if filter_docs:
         if len(filter_docs) == 1:

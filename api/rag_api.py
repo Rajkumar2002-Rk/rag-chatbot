@@ -32,9 +32,10 @@ from retrieval.retriever import (
     get_mmr_retriever,
     retrieve_with_scores,
 )
-from retrieval.reranker  import rerank_by_score
-from monitoring.logger   import log_query_event
-from cache.redis_cache   import get_cached_result, set_cached_result
+from retrieval.reranker          import rerank_by_score
+from retrieval.query_classifier  import classify_query
+from monitoring.logger           import log_query_event
+from cache.redis_cache           import get_cached_result, set_cached_result
 
 
 # ── Prompt loading ────────────────────────────────────────────────────────────
@@ -161,13 +162,21 @@ def run_query(
         cached["from_cache"] = True
         return cached
 
+    # ── Query classification ──────────────────────────────────────────────────
+    retrieval_cfg = classify_query(query)
+
     # ── Step 1: Retrieve with scores ──────────────────────────────────────────
     t_retrieval = time.time()
-    docs, scores = retrieve_with_scores(vector_store, query, filter_docs=filter_docs)
+    docs, scores = retrieve_with_scores(
+        vector_store,
+        retrieval_cfg.query,          # expanded if ambiguous
+        k=retrieval_cfg.top_k,
+        filter_docs=filter_docs,
+    )
     retrieval_time = time.time() - t_retrieval
 
     # ── Step 2: Rerank ────────────────────────────────────────────────────────
-    docs, scores = rerank_by_score(docs, scores)
+    docs, scores = rerank_by_score(docs, scores, top_k=retrieval_cfg.top_k)
 
     # ── Step 3: Hallucination guardrail ───────────────────────────────────────
     confidence_ok, reason = check_retrieval_confidence(docs, scores)
@@ -197,7 +206,13 @@ def run_query(
     # ── Step 4: Build chain and invoke LLM ───────────────────────────────────
     t_response = time.time()
     try:
-        retriever = get_mmr_retriever(vector_store, filter_docs=filter_docs)
+        retriever = get_mmr_retriever(
+            vector_store,
+            filter_docs=filter_docs,
+            k=retrieval_cfg.top_k,
+            fetch_k=retrieval_cfg.fetch_k,
+            lambda_mult=retrieval_cfg.lambda_mult,
+        )
         chain     = build_rag_chain(retriever)
         answer    = chain.invoke(query)
         response_time = time.time() - t_response
@@ -249,6 +264,7 @@ def run_query(
         "fallback_triggered": False,
         "token_usage":       token_estimate,
         "from_cache":        False,
+        "query_type":        retrieval_cfg.query_type.value,
     }
     set_cached_result(query, result, filter_docs)
     return result
