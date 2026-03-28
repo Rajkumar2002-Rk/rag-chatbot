@@ -25,7 +25,16 @@ def rerank_by_score(
     threshold: float = SIMILARITY_THRESHOLD,
 ) -> Tuple[List[Document], List[float]]:
     """
-    Filter documents below threshold and return top_k by descending score.
+    Filter, deduplicate, and return top_k chunks by descending score.
+
+    Steps:
+      1. Drop chunks below threshold
+      2. Sort by score descending
+      3. Deduplicate: keep only the highest-scoring chunk per (source, page)
+      4. Return top_k
+
+    Deduplication prevents the LLM from seeing the same page content
+    multiple times, which wastes context and produces redundant citations.
 
     Args:
         docs:      Retrieved documents.
@@ -42,10 +51,23 @@ def rerank_by_score(
         if score >= threshold
     ]
     paired.sort(key=lambda x: x[1], reverse=True)
-    paired = paired[:top_k]
 
-    if not paired:
+    # Deduplicate: one chunk per (source, page) — keep highest score
+    seen: set = set()
+    deduped = []
+    for doc, score in paired:
+        key = (
+            doc.metadata.get("source", ""),
+            doc.metadata.get("page", ""),
+        )
+        if key not in seen:
+            seen.add(key)
+            deduped.append((doc, score))
+
+    deduped = deduped[:top_k]
+
+    if not deduped:
         return [], []
 
-    out_docs, out_scores = zip(*paired)
+    out_docs, out_scores = zip(*deduped)
     return list(out_docs), list(out_scores)
