@@ -272,6 +272,9 @@ with st.sidebar:
         col2.metric("Tokens Used",      m["total_tokens_used"])
         col1.metric("Fallbacks",        m["fallback_responses"])
         col2.metric("Failed",           m["failed_queries"])
+        col1.metric("Cache Hits",       m["cache_hits"])
+        col2.metric("Cache Misses",     m["cache_misses"])
+        st.metric("Cache Hit Rate",     f"{m['cache_hit_rate_pct']}%")
 
         if m["top_documents"]:
             st.markdown("**Most queried documents:**")
@@ -431,10 +434,11 @@ if prompt:
 
         # Latency pill
         if result.get("response_time"):
+            cache_badge = " · ⚡ cached" if result.get("from_cache") else ""
             st.caption(
                 f"⏱ {result['response_time']*1000:.0f} ms response · "
                 f"{result['retrieval_time']*1000:.0f} ms retrieval · "
-                f"{result.get('num_chunks', 0)} chunks"
+                f"{result.get('num_chunks', 0)} chunks{cache_badge}"
             )
 
     # Update session state
@@ -450,6 +454,7 @@ if prompt:
         token_usage=result.get("token_usage", 0),
         fallback=result.get("fallback_triggered", False),
     )
+    st.session_state.metrics.record_cache_event(hit=result.get("from_cache", False))
 
 
 # ── Empty state (no store loaded yet) ────────────────────────────────────────

@@ -38,6 +38,10 @@ DATA_DIR: str        = os.getenv("DATA_DIR",        str(BASE_DIR / "data" / "sam
 LOGS_DIR: str        = os.getenv("LOGS_DIR",        str(BASE_DIR / "logs"))
 PROMPTS_DIR: str     = str(BASE_DIR / "prompts")
 
+# ── Redis Cache ───────────────────────────────────────────────────────────────
+REDIS_URL: str  = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CACHE_TTL: int  = int(os.getenv("CACHE_TTL", "3600"))   # seconds (1 hour)
+
 # ── Ensure runtime directories exist ─────────────────────────────────────────
 Path(LOGS_DIR).mkdir(parents=True, exist_ok=True)
 Path(VECTORSTORE_DIR).mkdir(parents=True, exist_ok=True)

@@ -29,6 +29,8 @@ class MetricsTracker:
         self.failed_queries:      int        = 0
         self.empty_context_count: int        = 0
         self.fallback_count:      int        = 0
+        self.cache_hits:          int        = 0
+        self.cache_misses:        int        = 0
 
     # ── Record ────────────────────────────────────────────────────────────────
 
@@ -53,6 +55,12 @@ class MetricsTracker:
         if failed:       self.failed_queries      += 1
         if empty_context: self.empty_context_count += 1
         if fallback:     self.fallback_count       += 1
+
+    def record_cache_event(self, hit: bool) -> None:
+        if hit:
+            self.cache_hits   += 1
+        else:
+            self.cache_misses += 1
 
     # ── Computed properties ───────────────────────────────────────────────────
 
@@ -90,6 +98,13 @@ class MetricsTracker:
 
     # ── Serialization ─────────────────────────────────────────────────────────
 
+    @property
+    def cache_hit_rate(self) -> float:
+        total = self.cache_hits + self.cache_misses
+        if total == 0:
+            return 0.0
+        return round(self.cache_hits / total * 100, 1)
+
     def to_dict(self) -> dict:
         return {
             "total_queries":           self.total_queries,
@@ -102,4 +117,7 @@ class MetricsTracker:
             "empty_context_responses": self.empty_context_count,
             "success_rate_pct":        self.success_rate,
             "top_documents":           self.top_documents,
+            "cache_hits":              self.cache_hits,
+            "cache_misses":            self.cache_misses,
+            "cache_hit_rate_pct":      self.cache_hit_rate,
         }

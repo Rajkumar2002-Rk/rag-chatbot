@@ -34,6 +34,7 @@ from retrieval.retriever import (
 )
 from retrieval.reranker  import rerank_by_score
 from monitoring.logger   import log_query_event
+from cache.redis_cache   import get_cached_result, set_cached_result
 
 
 # ── Prompt loading ────────────────────────────────────────────────────────────
@@ -154,6 +155,12 @@ def run_query(
     if not query:
         return {"answer": "Please enter a question.", "sources": [], "error": "empty_query"}
 
+    # ── Cache check: skip retrieval + LLM entirely on hit ─────────────────────
+    cached = get_cached_result(query, filter_docs)
+    if cached is not None:
+        cached["from_cache"] = True
+        return cached
+
     # ── Step 1: Retrieve with scores ──────────────────────────────────────────
     t_retrieval = time.time()
     docs, scores = retrieve_with_scores(vector_store, query, filter_docs=filter_docs)
@@ -232,7 +239,7 @@ def run_query(
         token_usage=token_estimate,
     )
 
-    return {
+    result = {
         "answer":            answer,
         "sources":           sources,
         "response_time":     response_time,
@@ -241,4 +248,7 @@ def run_query(
         "confidence_ok":     True,
         "fallback_triggered": False,
         "token_usage":       token_estimate,
+        "from_cache":        False,
     }
+    set_cached_result(query, result, filter_docs)
+    return result
