@@ -9,7 +9,7 @@ services:
       retries: 3
 
   app:
-    build: .
+    image: raja1566/rag-chatbot:latest
     restart: unless-stopped
     ports:
       - "8501:8501"
@@ -31,7 +31,7 @@ services:
       retries: 3
 
   api:
-    build: .
+    image: raja1566/rag-chatbot:latest
     restart: unless-stopped
     command: ["uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/api"]
     ports:
