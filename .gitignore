@@ -12,7 +12,7 @@ vectorstore_data/
 vectorstore/
 
 # Logs
-logs/
+logs/*.log
 
 # Evaluation output
 evaluation_results.json
