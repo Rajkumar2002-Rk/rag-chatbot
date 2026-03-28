@@ -42,6 +42,11 @@ PROMPTS_DIR: str     = str(BASE_DIR / "prompts")
 REDIS_URL: str  = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CACHE_TTL: int  = int(os.getenv("CACHE_TTL", "3600"))   # seconds (1 hour)
 
+# ── Cost Controls ─────────────────────────────────────────────────────────────
+MAX_QUERY_LENGTH: int  = int(os.getenv("MAX_QUERY_LENGTH",  "500"))   # characters
+MAX_INPUT_TOKENS: int  = int(os.getenv("MAX_INPUT_TOKENS",  "400"))   # tiktoken tokens
+RATE_LIMIT: str        = os.getenv("RATE_LIMIT", "20/minute")         # slowapi format
+
 # ── Ensure runtime directories exist ─────────────────────────────────────────
 Path(LOGS_DIR).mkdir(parents=True, exist_ok=True)
 Path(VECTORSTORE_DIR).mkdir(parents=True, exist_ok=True)

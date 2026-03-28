@@ -39,6 +39,7 @@ Deployed on AWS EC2 (t3.micro) behind nginx with Let's Encrypt SSL.
 | **Hallucination Guardrails** | Similarity threshold + min context length check before the LLM is called |
 | **MMR Retrieval** | Maximum Marginal Relevance reduces redundant chunks |
 | **Chunk Deduplication** | Deduplicates by `(source, page)` — prevents the same page appearing multiple times in context |
+| **Cost Controls** | Rate limiting (20 req/min per IP), input length cap (500 chars), token budget (400 tokens) — all fire before OpenAI is called |
 | **Library Mode** | Query pre-indexed PDFs with multi-document filtering |
 | **Upload Mode** | Upload any PDF and query it instantly (temp-dir storage, isolated per session) |
 | **Real-Time Metrics** | Session latency, token usage, cache hit rate, success rate — tracked in the UI |
@@ -57,6 +58,9 @@ Deployed on AWS EC2 (t3.micro) behind nginx with Let's Encrypt SSL.
                              │
           ┌──────────────────▼──────────────────┐
           │          api/server.py (FastAPI)      │
+          │  Rate limit (20/min per IP)          │
+          │  Input length guard (500 chars)      │
+          │  Token budget guard (400 tokens)     │
           │  POST /query → run_query()           │
           │  GET  /health                        │
           └──────────────────┬──────────────────┘
@@ -143,7 +147,8 @@ rag-chatbot/
 │   └── streamlit_ui.py           # Streamlit UI — library, upload, metrics, welcome guide
 ├── api/
 │   ├── rag_api.py                # Core RAG logic: run_query(), build_rag_chain()
-│   └── server.py                 # FastAPI server — POST /query, GET /health
+│   ├── server.py                 # FastAPI server — rate limiting, input guards, POST /query
+│   └── rate_limiter.py           # slowapi Limiter instance (Redis-backed)
 ├── cache/
 │   └── redis_cache.py            # Redis caching with query normalization + stats
 ├── ingestion/
@@ -308,7 +313,24 @@ All settings in `config/settings.py`, overridable via `.env`:
 | `RETRIEVAL_LAMBDA` | `0.7` | Relevance vs diversity balance |
 | `SIMILARITY_THRESHOLD` | `0.15` | Min score to trust a chunk |
 | `MIN_CONTEXT_LENGTH` | `50` | Min chars of context before LLM call |
+| `RATE_LIMIT` | `20/minute` | Max requests per IP per window |
+| `MAX_QUERY_LENGTH` | `500` | Max query length in characters |
+| `MAX_INPUT_TOKENS` | `400` | Max query tokens (tiktoken) before LLM |
 | `VECTORSTORE_DIR` | `vectorstore_data/` | ChromaDB persist path |
+
+---
+
+## Cost Controls
+
+Three guards fire on every `/query` request **before** OpenAI is ever called:
+
+| Guard | Limit | Response on breach |
+|---|---|---|
+| **Rate limiting** | 20 requests/minute per IP (slowapi + Redis) | HTTP 429 |
+| **Input length** | 500 characters max | HTTP 400 |
+| **Token budget** | 400 tokens max (tiktoken `cl100k_base`) | HTTP 400 |
+
+All limits are configurable via `.env` — see `RATE_LIMIT`, `MAX_QUERY_LENGTH`, `MAX_INPUT_TOKENS`.
 
 ---
 
