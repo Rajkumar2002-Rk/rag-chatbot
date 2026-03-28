@@ -1,139 +1,175 @@
-# 🤖 Enterprise RAG Chatbot — Production AI Document Intelligence
+# RAG Chatbot — Production AI Document Intelligence
 
-A production-grade **Retrieval-Augmented Generation (RAG)** system with evaluation, observability, multi-document support, hallucination guardrails, and a recruiter-friendly UI — containerized with Docker and deployed on AWS EC2.
+A production-grade **Retrieval-Augmented Generation (RAG)** system with query classification, Redis caching, a REST API, hallucination guardrails, citation-grounded answers, and real-time metrics — containerized with Docker and deployed on AWS EC2.
 
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python)](https://python.org)
 [![LangChain](https://img.shields.io/badge/LangChain-0.3-1C3C3C?style=flat-square)](https://langchain.com)
-[![OpenAI](https://img.shields.io/badge/OpenAI-API-412991?style=flat-square&logo=openai)](https://openai.com)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--3.5--turbo-412991?style=flat-square&logo=openai)](https://openai.com)
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-0.5-FF6B35?style=flat-square)](https://trychroma.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis)](https://redis.io)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.39-FF4B4B?style=flat-square&logo=streamlit)](https://streamlit.io)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker)](https://docker.com)
 [![AWS EC2](https://img.shields.io/badge/AWS-EC2-FF9900?style=flat-square&logo=amazonaws)](https://aws.amazon.com/ec2/)
 
+---
 
-## 🚀 Live Demo
-👉 **[chatbot.rajkumarai.dev](https://chatbot.rajkumarai.dev)** — deployed on AWS EC2
+## Live Demo
 
-> Portfolio: [rajkumarai.dev](https://rajkumarai.dev)
+**Chatbot UI:** [chatbot.rajkumarai.dev](https://chatbot.rajkumarai.dev)
+
+**REST API:** [chatbot.rajkumarai.dev/api/query](https://chatbot.rajkumarai.dev/api/query) (POST)
+
+**Swagger Docs:** [chatbot.rajkumarai.dev/api/docs](https://chatbot.rajkumarai.dev/api/docs)
+
+**Portfolio:** [rajkumarai.dev](https://rajkumarai.dev)
+
+Deployed on AWS EC2 (t3.micro) behind nginx with Let's Encrypt SSL.
 
 ---
 
-## 🏗️ System Architecture
+## Features
+
+| Feature | Details |
+|---|---|
+| **Query Classification** | Rule-based classifier routes each query to an optimized retrieval config (FACTUAL / COMPLEX / AMBIGUOUS / KEYWORD) |
+| **Redis Caching** | Normalized query caching with SHA-256 keys, 1-hour TTL — skips caching for fallback/low-confidence responses |
+| **REST API** | FastAPI service (`POST /api/query`) with Swagger UI — independently queryable without the Streamlit UI |
+| **Citation-Grounded Answers** | Every response includes `[SOURCE N: filename | Page]` references |
+| **Hallucination Guardrails** | Similarity threshold + min context length check before the LLM is called |
+| **MMR Retrieval** | Maximum Marginal Relevance reduces redundant chunks |
+| **Chunk Deduplication** | Deduplicates by `(source, page)` — prevents the same page appearing multiple times in context |
+| **Library Mode** | Query pre-indexed PDFs with multi-document filtering |
+| **Upload Mode** | Upload any PDF and query it instantly (temp-dir storage, isolated per session) |
+| **Real-Time Metrics** | Session latency, token usage, cache hit rate, success rate — tracked in the UI |
+| **Structured Logging** | Every query logged as JSON to `logs/rag_queries.log` |
+
+---
+
+## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        USER INTERFACE                                │
-│           app/streamlit_ui.py  ←→  api/rag_api.py                  │
-│     [Library Mode | Upload Mode | Multi-Doc Select | Metrics Panel] │
-└────────────────────────────┬────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                         USER INTERFACE                            │
+│           app/streamlit_ui.py  ←→  api/rag_api.py               │
+│    [Library Mode | Upload Mode | Multi-Doc Select | Metrics]     │
+└────────────────────────────┬─────────────────────────────────────┘
                              │
           ┌──────────────────▼──────────────────┐
-          │           api/rag_api.py             │
-          │   run_query() — orchestrates all     │
-          │   steps below                        │
+          │          api/server.py (FastAPI)      │
+          │  POST /query → run_query()           │
+          │  GET  /health                        │
           └──────────────────┬──────────────────┘
                              │
-     ┌───────────────────────▼───────────────────────┐
-     │              retrieval/retriever.py            │
-     │  retrieve_with_scores() → rerank_by_score()   │
-     │  check_retrieval_confidence() [GUARDRAIL]      │
-     └───────────────────────┬───────────────────────┘
+          ┌──────────────────▼──────────────────┐
+          │        cache/redis_cache.py          │
+          │  SHA-256 key on normalized query     │
+          │  HIT → return cached response        │
+          │  MISS → continue pipeline            │
+          └──────────────────┬──────────────────┘
                              │
-     ┌───────────────────────▼───────────────────────┐
-     │         vectorstore/chroma_manager.py          │
-     │  similarity_search_with_scores()               │
-     │  [persisted library | temp-dir uploads]        │
-     └───────────────────────┬───────────────────────┘
+          ┌──────────────────▼──────────────────┐
+          │    retrieval/query_classifier.py     │
+          │  FACTUAL / COMPLEX / AMBIGUOUS /     │
+          │  KEYWORD → sets top_k, fetch_k       │
+          └──────────────────┬──────────────────┘
                              │
-     ┌───────────────────────▼───────────────────────┐
-     │           LLM (gpt-3.5-turbo)                 │
-     │  format_docs_with_metadata() → prompt →       │
-     │  [SOURCE N: filename | Page] citations        │
-     └───────────────────────┬───────────────────────┘
+          ┌──────────────────▼──────────────────┐
+          │       retrieval/retriever.py         │
+          │  MMR retrieval with per-query config │
+          │  check_retrieval_confidence()        │
+          └──────────────────┬──────────────────┘
                              │
-     ┌───────────────────────▼───────────────────────┐
-     │           monitoring/logger.py                 │
-     │  log_query_event() → logs/rag_queries.log     │
-     │  monitoring/metrics.py → Streamlit dashboard  │
-     └───────────────────────────────────────────────┘
+          ┌──────────────────▼──────────────────┐
+          │       retrieval/reranker.py          │
+          │  Score filter (threshold=0.15)       │
+          │  Dedup by (source, page)             │
+          └──────────────────┬──────────────────┘
+                             │
+          ┌──────────────────▼──────────────────┐
+          │     vectorstore/chroma_manager.py    │
+          │  ChromaDB — persisted or temp-dir    │
+          └──────────────────┬──────────────────┘
+                             │
+          ┌──────────────────▼──────────────────┐
+          │       GPT-3.5-turbo (OpenAI)        │
+          │  Strict prompt + citation format     │
+          └──────────────────┬──────────────────┘
+                             │
+          ┌──────────────────▼──────────────────┐
+          │      monitoring/logger.py            │
+          │  log_query_event() → JSONL log       │
+          │  monitoring/metrics.py → UI panel    │
+          └─────────────────────────────────────┘
 ```
 
 ---
 
-## 📊 Data Flow
+## Data Flow
 
 ```
 PDF Files
    ↓
-ingestion/pdf_loader.py         ← PyPDFLoader, source metadata patching
+ingestion/pdf_loader.py           ← PyPDFLoader + source metadata patching
    ↓
-ingestion/chunking.py           ← RecursiveCharacterTextSplitter (1000/200)
+ingestion/chunking.py             ← RecursiveCharacterTextSplitter (1000/200)
    ↓
-ingestion/embedding_pipeline.py ← OpenAI text-embedding-3-small (1536-dim)
+ingestion/embedding_pipeline.py   ← OpenAI text-embedding-3-small (1536-dim)
    ↓
-vectorstore/chroma_manager.py   ← ChromaDB PersistentClient (persisted or temp-dir)
+vectorstore/chroma_manager.py     ← ChromaDB PersistentClient
    ↓
-retrieval/retriever.py          ← MMR (fetch_k=20 → rerank → top-5)
+retrieval/query_classifier.py     ← Classifies query type, sets retrieval config
    ↓
-retrieval/reranker.py           ← Score-based filtering (threshold=0.15)
+retrieval/retriever.py            ← MMR retrieval with classified config
+   ↓
+retrieval/reranker.py             ← Score filter + (source, page) deduplication
    ↓  [GUARDRAIL: fallback if low confidence]
-api/rag_api.py                  ← format_docs_with_metadata() + strict prompt
+api/rag_api.py                    ← format_docs_with_metadata() + strict prompt
    ↓
-GPT-3.5-turbo                   ← Grounded answer with [SOURCE N: file | Page]
+GPT-3.5-turbo                     ← Grounded answer with [SOURCE N: file | Page]
    ↓
-monitoring/logger.py            ← JSON log entry to logs/rag_queries.log
+cache/redis_cache.py              ← Cache result for 1 hour
+   ↓
+monitoring/logger.py              ← JSON log entry to logs/rag_queries.log
 ```
 
 ---
 
-## ✨ Features
-
-| Feature | Description |
-|---|---|
-| **Library Mode** | Query pre-indexed PDF documents with multi-doc filtering |
-| **Upload Mode** | Upload any PDF and query it instantly (temp-dir storage, no persistence) |
-| **Citation-Grounded Answers** | Every response includes `[SOURCE N: filename \| Page]` references |
-| **Hallucination Guardrails** | Similarity threshold + min context length check before LLM call |
-| **MMR Retrieval** | Maximum Marginal Relevance reduces redundant chunks (fetch_k=20, top-5) |
-| **Session Metrics Dashboard** | Real-time latency, token usage, success rate, top documents |
-| **Recruiter-Friendly UI** | Welcome guide, clickable example questions, architecture pipeline display |
-| **Structured Logging** | Every query logged as JSON to `logs/rag_queries.log` |
-| **Modular Architecture** | Business logic split into `api/`, `ingestion/`, `retrieval/`, `vectorstore/` |
-| **Docker + AWS EC2** | Containerized with persistent vectorstore volume, live public demo |
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 rag-chatbot/
 ├── app/
-│   └── streamlit_ui.py          # Streamlit UI (library + upload + metrics + welcome guide)
+│   └── streamlit_ui.py           # Streamlit UI — library, upload, metrics, welcome guide
 ├── api/
-│   └── rag_api.py               # Core RAG logic: run_query(), build_rag_chain()
+│   ├── rag_api.py                # Core RAG logic: run_query(), build_rag_chain()
+│   └── server.py                 # FastAPI server — POST /query, GET /health
+├── cache/
+│   └── redis_cache.py            # Redis caching with query normalization + stats
 ├── ingestion/
-│   ├── pdf_loader.py            # PDF loading + metadata normalization
-│   ├── chunking.py              # RecursiveCharacterTextSplitter
-│   └── embedding_pipeline.py   # End-to-end ingest pipeline
+│   ├── pdf_loader.py             # PDF loading + metadata normalization
+│   ├── chunking.py               # RecursiveCharacterTextSplitter
+│   └── embedding_pipeline.py    # End-to-end ingest pipeline
 ├── retrieval/
-│   ├── retriever.py             # MMR retriever + hallucination guardrails
-│   └── reranker.py              # Score-based chunk filtering
+│   ├── query_classifier.py       # Rule-based classifier → RetrievalConfig
+│   ├── retriever.py              # MMR retriever + hallucination guardrails
+│   └── reranker.py               # Score filtering + (source, page) deduplication
 ├── vectorstore/
-│   └── chroma_manager.py        # ChromaDB CRUD + document listing
-├── evaluation/
-│   ├── run_rag_eval.py          # Evaluation script
-│   └── benchmark_questions.json # Ground-truth question set
+│   └── chroma_manager.py         # ChromaDB CRUD + document listing
 ├── monitoring/
-│   ├── logger.py                # Structured JSON logger
-│   └── metrics.py               # In-memory metrics tracker
+│   ├── logger.py                 # Structured JSON logger
+│   └── metrics.py                # MetricsTracker (latency, tokens, cache hit rate)
+├── evaluation/
+│   └── run_rag_eval.py           # Evaluation script
 ├── prompts/
-│   └── rag_prompt.txt           # Strict citation prompt template
+│   └── rag_prompt.txt            # Strict citation prompt template
 ├── config/
-│   └── settings.py              # Centralized env-based configuration
-├── data/sampledocs/             # Library PDFs (Raj_Resume, Attention, GPT-4)
-├── vectorstore_data/            # ChromaDB persisted store (volume-mounted)
-├── logs/                        # rag_queries.log written here
-├── ingest.py                    # Top-level ingestion script
+│   └── settings.py               # All config from .env
+├── data/sampledocs/              # Library PDFs
+├── vectorstore_data/             # ChromaDB persisted store (volume-mounted)
+├── logs/                         # rag_queries.log written here
+├── ingest.py                     # Top-level ingestion script
+├── docker-compose.yml            # 3 services: redis, app (Streamlit), api (FastAPI)
 ├── Dockerfile
 ├── .env.example
 └── requirements.txt
@@ -141,7 +177,7 @@ rag-chatbot/
 
 ---
 
-## 🚀 Setup — Local
+## Setup — Local
 
 ```bash
 git clone https://github.com/Rajkumar2002-Rk/rag-chatbot.git
@@ -153,91 +189,142 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
+# Add your OPENAI_API_KEY to .env
 
-# Add your PDFs to data/sampledocs/
-
+# Add PDFs to data/sampledocs/
 python ingest.py
 
+# Run Streamlit UI
 streamlit run app/streamlit_ui.py
+
+# Run FastAPI (separate terminal)
+uvicorn api.server:app --host 0.0.0.0 --port 8000
 ```
 
 ---
 
-## 🐳 Setup — Docker (Production)
+## Setup — Docker Compose (Production)
 
 ```bash
-# Build the image
-docker build -t rag-chatbot-app .
+cp .env.example .env
+# Add your OPENAI_API_KEY to .env
 
-# Run with persistent vectorstore volume
-docker run -d \
-  --name rag-chatbot-app \
-  -p 8501:8501 \
-  --env-file .env \
-  -v $(pwd)/vectorstore_data:/app/vectorstore_data \
-  rag-chatbot-app
-
-# Index PDFs into the running container
-docker exec rag-chatbot-app python ingest.py
+docker-compose up -d
 ```
 
-Open `http://localhost:8501`
+This starts three services:
+- **redis** — Redis 7 (caching)
+- **app** — Streamlit UI on port 8501
+- **api** — FastAPI on port 8000
 
-> **Note:** The `vectorstore_data/` directory is volume-mounted so embeddings persist across container restarts. To re-index with new PDFs, clear the volume with `sudo rm -rf vectorstore_data/*` then re-run `ingest.py`.
+Open `http://localhost:8501` for the UI or hit `http://localhost:8000/query` for the API.
+
+> The `vectorstore_data/` and `logs/` directories are volume-mounted so data persists across restarts.
 
 ---
 
-## 📊 Evaluation
+## REST API
 
-Run the benchmark evaluation against your indexed document library:
+### `POST /api/query`
 
 ```bash
-python evaluation/run_rag_eval.py
-# or with custom paths:
-python evaluation/run_rag_eval.py \
-  --questions evaluation/benchmark_questions.json \
-  --output evaluation_results.json \
-  --collection library
+curl -X POST https://chatbot.rajkumarai.dev/api/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What are the attention mechanisms described in the paper?"}'
 ```
 
-**Output metrics:**
-- **Retrieval Hit Rate** — % of questions where the expected document was retrieved
-- **Citation Accuracy** — % of answers that include a `[SOURCE N: file | Page]` citation
-- **Fallback Accuracy** — % of out-of-scope questions correctly handled by guardrail
-- **Avg Latency (ms)** — mean end-to-end response time
-
----
-
-## 🔬 Key Implementation Details
-
-### Hallucination Guardrails
-Three conditions trigger the fallback response:
-1. No documents retrieved from ChromaDB
-2. Best similarity score < `SIMILARITY_THRESHOLD` (default: 0.15)
-3. Total context length < `MIN_CONTEXT_LENGTH` (default: 50 chars)
-
-When triggered, the UI shows a helpful tip guiding the user toward specific questions that retrieve well.
-
-### ChromaDB Storage Strategy
-- **Library mode** — `PersistentClient(path=VECTORSTORE_DIR)` with Docker volume mount for persistence across restarts
-- **Upload mode** — `PersistentClient(path=tempfile.mkdtemp())` for isolated per-session temp storage (avoids ChromaDB 0.5.x EphemeralClient SQLite bug)
-
-### Multi-Document Filtering
-ChromaDB's `filter` parameter restricts retrieval to selected documents:
-```python
-filter={"source": {"$in": ["doc1.pdf", "doc2.pdf"]}}
-```
-
-### Structured Logging
-Every query writes a JSON line to `logs/rag_queries.log`:
+**Request body:**
 ```json
 {
-  "timestamp": "2026-03-16T05:12:29Z",
+  "query": "string",
+  "filter_docs": ["doc1.pdf", "doc2.pdf"]  // optional
+}
+```
+
+**Response:**
+```json
+{
+  "answer": "The paper describes...",
+  "sources": ["Attention Is All You Need.pdf"],
+  "query_type": "COMPLEX",
+  "cache_hit": false,
+  "response_time_ms": 1240,
+  "num_chunks": 7
+}
+```
+
+Swagger UI: [chatbot.rajkumarai.dev/api/docs](https://chatbot.rajkumarai.dev/api/docs)
+
+---
+
+## Query Classification
+
+Each query is classified before retrieval, with a retrieval config tuned per type:
+
+| Type | top_k | fetch_k | Notes |
+|---|---|---|---|
+| `FACTUAL` | 3 | 10 | Short, specific lookups |
+| `COMPLEX` | 7 | 25 | Multi-part questions |
+| `AMBIGUOUS` | 5 | 15 | Query expansion applied |
+| `KEYWORD` | 5 | 15 | Keyword/entity lookups |
+
+---
+
+## Redis Caching
+
+- **Key:** SHA-256 hash of normalized query + `filter_docs`
+- **Normalization:** lowercase, collapse whitespace, strip punctuation, strip filler prefixes ("what is", "tell me about", etc.)
+- **TTL:** 1 hour (configurable via `CACHE_TTL`)
+- **Skips caching:** fallback responses, low-confidence results, errors
+- **Stats tracked:** hits, misses, sets, skipped — surfaced in the UI metrics panel
+
+---
+
+## Hallucination Guardrails
+
+Three conditions trigger a fallback response instead of an LLM call:
+
+1. No documents retrieved from ChromaDB
+2. Best similarity score < `SIMILARITY_THRESHOLD` (default: `0.15`)
+3. Total context length < `MIN_CONTEXT_LENGTH` (default: `50` chars)
+
+When triggered, the user sees a helpful message guiding them toward better queries.
+
+---
+
+## Configuration
+
+All settings in `config/settings.py`, overridable via `.env`:
+
+| Variable | Default | Description |
+|---|---|---|
+| `OPENAI_API_KEY` | — | Required |
+| `REDIS_URL` | `redis://redis:6379/0` | Redis connection URL |
+| `CACHE_TTL` | `3600` | Cache TTL in seconds |
+| `CHUNK_SIZE` | `1000` | Characters per chunk |
+| `CHUNK_OVERLAP` | `200` | Overlap between chunks |
+| `RETRIEVAL_K` | `5` | Chunks returned to LLM |
+| `RETRIEVAL_FETCH_K` | `20` | MMR candidates before reranking |
+| `RETRIEVAL_LAMBDA` | `0.7` | Relevance vs diversity balance |
+| `SIMILARITY_THRESHOLD` | `0.15` | Min score to trust a chunk |
+| `MIN_CONTEXT_LENGTH` | `50` | Min chars of context before LLM call |
+| `VECTORSTORE_DIR` | `vectorstore_data/` | ChromaDB persist path |
+
+---
+
+## Structured Logging
+
+Every query writes a JSON line to `logs/rag_queries.log`:
+
+```json
+{
+  "timestamp": "2026-03-28T10:22:11Z",
   "query": "What programming languages does Raj know?",
+  "query_type": "FACTUAL",
+  "cache_hit": false,
   "response_time_ms": 1180,
   "retrieval_time_ms": 192,
-  "num_chunks": 1,
+  "num_chunks": 3,
   "source_documents": ["Raj_Resume.pdf"],
   "token_usage_estimate": 284
 }
@@ -245,28 +332,20 @@ Every query writes a JSON line to `logs/rag_queries.log`:
 
 ---
 
-## ⚙️ Configuration
+## Docker Hub
 
-All settings in `config/settings.py` — overridable via `.env`:
+Pre-built image: [hub.docker.com/r/raja1566/rag-chatbot](https://hub.docker.com/r/raja1566/rag-chatbot)
 
-| Variable | Default | Description |
-|---|---|---|
-| `OPENAI_API_KEY` | — | Required — your OpenAI API key |
-| `CHUNK_SIZE` | 1000 | Characters per chunk |
-| `CHUNK_OVERLAP` | 200 | Overlap between chunks |
-| `RETRIEVAL_K` | 5 | Chunks returned to LLM |
-| `RETRIEVAL_FETCH_K` | 20 | MMR candidates before reranking |
-| `RETRIEVAL_LAMBDA` | 0.7 | Relevance vs diversity balance |
-| `SIMILARITY_THRESHOLD` | 0.15 | Min similarity score to trust a chunk |
-| `MIN_CONTEXT_LENGTH` | 50 | Min chars of context before LLM call |
-| `VECTORSTORE_DIR` | `vectorstore_data/` | Path to ChromaDB persisted store |
+```bash
+docker pull raja1566/rag-chatbot:latest
+```
 
 ---
 
-## 📄 License
+## License
 
 MIT License
 
 <div align="center">
-  <sub>Built by <a href="https://rajkumar2002-rk.github.io/Real_Portfolio/">Raj Kumar Nelluri</a> · AI Engineer</sub>
+  <sub>Built by <a href="https://rajkumarai.dev">Raj Kumar Nelluri</a> · AI Engineer</sub>
 </div>

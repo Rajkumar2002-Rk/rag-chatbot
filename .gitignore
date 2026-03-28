@@ -1,9 +1,22 @@
+# Secrets
 .env
+
+# Python
 venv/
-vectorstore_data/
-vectorstore/
 __pycache__/
 *.pyc
-.DS_Store
-evaluation/results/
+*.pyo
+
+# ChromaDB data
+vectorstore_data/
+vectorstore/
+
+# Logs
 logs/
+
+# Evaluation output
+evaluation_results.json
+evaluation/results/
+
+# OS
+.DS_Store
