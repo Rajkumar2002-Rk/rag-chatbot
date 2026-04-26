@@ -25,6 +25,9 @@ def ingest_directory(directory: str, collection_name: str = "library") -> int:
     """
     Ingest all PDFs from a directory into a persisted ChromaDB collection.
 
+    Chunks each file independently so adaptive chunk sizing works
+    correctly (a 1-page resume gets smaller chunks than a 50-page paper).
+
     Returns:
         Number of chunks indexed.
     """
@@ -39,19 +42,26 @@ def ingest_directory(directory: str, collection_name: str = "library") -> int:
     unique_files = set(d.metadata.get("source", "") for d in documents)
     print(f"[ingest] Loaded {len(documents)} pages from {len(unique_files)} file(s)")
 
-    chunks = split_documents(documents)
-    print(f"[ingest] Split into {len(chunks)} chunks")
+    # Chunk per-file so adaptive sizing picks the right params for each doc
+    all_chunks: list = []
+    for filename in sorted(unique_files):
+        file_docs = [d for d in documents if d.metadata.get("source") == filename]
+        file_chunks = split_documents(file_docs)
+        all_chunks.extend(file_chunks)
+        print(f"[ingest]   {filename}: {len(file_docs)} pages → {len(file_chunks)} chunks")
+
+    print(f"[ingest] Total: {len(all_chunks)} chunks")
 
     manager = ChromaManager(collection_name=collection_name, persist=True)
-    manager.add_documents(chunks)
+    manager.add_documents(all_chunks)
 
     duration = time.time() - t0
     for filename in unique_files:
-        file_chunks = [c for c in chunks if c.metadata.get("source") == filename]
+        file_chunks = [c for c in all_chunks if c.metadata.get("source") == filename]
         log_ingestion_event(filename, len(file_chunks), duration)
 
-    print(f"[ingest] Done — {len(chunks)} chunks indexed into '{collection_name}' ({duration:.1f}s)")
-    return len(chunks)
+    print(f"[ingest] Done — {len(all_chunks)} chunks indexed into '{collection_name}' ({duration:.1f}s)")
+    return len(all_chunks)
 
 
 def ingest_uploaded_pdf(

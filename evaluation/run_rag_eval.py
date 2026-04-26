@@ -71,6 +71,7 @@ def run_evaluation(
     questions_path: str = "evaluation/benchmark_questions.json",
     output_path:    str = "evaluation_results.json",
     collection:     str = "library",
+    use_judge:      bool = False,
 ) -> Dict:
     """
     Run the full evaluation suite.
@@ -158,9 +159,25 @@ def run_evaluation(
             },
         })
 
+        # ── LLM-as-judge (optional) ───────────────────────────────────────
+        judge_scores = None
+        if use_judge and not result.get("fallback_triggered"):
+            from evaluation.llm_judge import judge_answer
+            judge_scores = judge_answer(
+                question=question,
+                answer=result.get("answer", ""),
+                context=result.get("context", ""),
+            )
+            question_results[-1]["judge_scores"] = judge_scores
+
         status = "✅" if hit and cited else "⚠️"
+        judge_str = ""
+        if judge_scores and judge_scores.get("faithfulness"):
+            judge_str = (f" | F={judge_scores['faithfulness']} "
+                         f"R={judge_scores['relevance']} "
+                         f"C={judge_scores['completeness']}")
         print(f"       {status} hit={hit} cited={cited} fb_correct={fb_ok} "
-              f"latency={latency*1000:.0f}ms")
+              f"latency={latency*1000:.0f}ms{judge_str}")
 
     print(f"{'─'*60}\n")
 
@@ -180,11 +197,24 @@ def run_evaluation(
         "out_of_scope_questions":   len(out_of_scope),
     }
 
+    # ── Judge aggregates (if enabled) ────────────────────────────────────────
+    if use_judge:
+        judged = [r for r in question_results if r.get("judge_scores") and r["judge_scores"].get("faithfulness")]
+        if judged:
+            aggregate["avg_faithfulness"]  = round(sum(r["judge_scores"]["faithfulness"]  for r in judged) / len(judged), 2)
+            aggregate["avg_relevance"]     = round(sum(r["judge_scores"]["relevance"]     for r in judged) / len(judged), 2)
+            aggregate["avg_completeness"]  = round(sum(r["judge_scores"]["completeness"]  for r in judged) / len(judged), 2)
+            aggregate["judged_questions"]  = len(judged)
+
     print("📊 EVALUATION SUMMARY")
     print(f"  Retrieval Hit Rate : {aggregate['retrieval_hit_rate']}%")
     print(f"  Citation Accuracy  : {aggregate['citation_accuracy']}%")
     print(f"  Fallback Accuracy  : {aggregate['fallback_accuracy']}%")
     print(f"  Avg Latency        : {aggregate['avg_latency_ms']} ms")
+    if use_judge and "avg_faithfulness" in aggregate:
+        print(f"  Avg Faithfulness   : {aggregate['avg_faithfulness']}/5")
+        print(f"  Avg Relevance      : {aggregate['avg_relevance']}/5")
+        print(f"  Avg Completeness   : {aggregate['avg_completeness']}/5")
 
     # ── Write output ──────────────────────────────────────────────────────────
     output = {
@@ -223,5 +253,10 @@ if __name__ == "__main__":
         default="library",
         help="ChromaDB collection name to evaluate.",
     )
+    parser.add_argument(
+        "--judge",
+        action="store_true",
+        help="Enable LLM-as-judge scoring (faithfulness, relevance, completeness).",
+    )
     args = parser.parse_args()
-    run_evaluation(args.questions, args.output, args.collection)
+    run_evaluation(args.questions, args.output, args.collection, use_judge=args.judge)

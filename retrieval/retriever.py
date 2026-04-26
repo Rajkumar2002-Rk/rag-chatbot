@@ -22,11 +22,35 @@ from config.settings import (
 )
 
 FALLBACK_RESPONSE = (
-    "I could not find relevant information in the uploaded document."
+    "I could not find relevant information in the provided documents."
 )
 
 
 # ── MMR Retriever ─────────────────────────────────────────────────────────────
+
+def _cap_to_collection(vector_store: Chroma, k: int, fetch_k: int):
+    """Cap k and fetch_k so they never exceed the actual number of chunks."""
+    try:
+        n = vector_store._collection.count()
+        if n == 0:
+            return k, fetch_k
+        k       = min(k, n)
+        fetch_k = min(fetch_k, n)
+        # fetch_k must be >= k for MMR to work
+        fetch_k = max(fetch_k, k)
+    except Exception:
+        pass
+    return k, fetch_k
+
+
+def _build_filter(filter_docs: Optional[List[str]]) -> Optional[dict]:
+    """Build a ChromaDB where-clause from a list of filenames."""
+    if not filter_docs:
+        return None
+    if len(filter_docs) == 1:
+        return {"source": {"$eq": filter_docs[0]}}
+    return {"source": {"$in": filter_docs}}
+
 
 def get_mmr_retriever(
     vector_store: Chroma,
@@ -49,20 +73,61 @@ def get_mmr_retriever(
         fetch_k:      Candidate pool size for MMR (overrides RETRIEVAL_FETCH_K).
         lambda_mult:  MMR diversity weight (overrides RETRIEVAL_LAMBDA).
     """
+    k, fetch_k = _cap_to_collection(vector_store, k, fetch_k)
+
     search_kwargs: dict = {
         "k":           k,
         "fetch_k":     fetch_k,
         "lambda_mult": lambda_mult,
     }
-    if filter_docs:
-        if len(filter_docs) == 1:
-            search_kwargs["filter"] = {"source": filter_docs[0]}
-        elif len(filter_docs) > 1:
-            search_kwargs["filter"] = {"source": {"$in": filter_docs}}
+    where = _build_filter(filter_docs)
+    if where:
+        search_kwargs["filter"] = where
 
     return vector_store.as_retriever(
         search_type="mmr",
         search_kwargs=search_kwargs,
+    )
+
+
+# ── Hybrid Retriever (BM25 + Vector) ─────────────────────────────────────────
+
+def get_hybrid_retriever(
+    vector_store: Chroma,
+    all_docs: List[Document],
+    filter_docs: Optional[List[str]] = None,
+    k: int = RETRIEVAL_K,
+    fetch_k: int = RETRIEVAL_FETCH_K,
+    lambda_mult: float = RETRIEVAL_LAMBDA,
+):
+    """
+    Build an ensemble retriever that combines keyword (BM25) and semantic (MMR).
+
+    BM25 catches exact keyword matches (names, numbers, emails) that
+    embeddings sometimes miss. MMR handles semantic similarity. The
+    ensemble merges both result sets with reciprocal rank fusion.
+
+    Falls back to MMR-only if all_docs is empty or too small.
+    """
+    from langchain_community.retrievers import BM25Retriever
+    from langchain.retrievers import EnsembleRetriever
+
+    mmr = get_mmr_retriever(vector_store, filter_docs, k, fetch_k, lambda_mult)
+
+    # Filter corpus for BM25 if filter_docs is set
+    corpus = all_docs
+    if filter_docs:
+        filter_set = set(filter_docs)
+        corpus = [d for d in all_docs if d.metadata.get("source") in filter_set]
+
+    if len(corpus) < 2:
+        return mmr
+
+    bm25 = BM25Retriever.from_documents(corpus, k=k)
+
+    return EnsembleRetriever(
+        retrievers=[bm25, mmr],
+        weights=[0.3, 0.7],
     )
 
 
@@ -80,12 +145,11 @@ def retrieve_with_scores(
     Returns:
         (documents, scores) — scores in [0, 1], higher = more relevant.
     """
+    k, _ = _cap_to_collection(vector_store, k, k)
     kwargs: dict = {"k": k}
-    if filter_docs:
-        if len(filter_docs) == 1:
-            kwargs["filter"] = {"source": filter_docs[0]}
-        elif len(filter_docs) > 1:
-            kwargs["filter"] = {"source": {"$in": filter_docs}}
+    where = _build_filter(filter_docs)
+    if where:
+        kwargs["filter"] = where
 
     results = vector_store.similarity_search_with_relevance_scores(query, **kwargs)
     if not results:
@@ -104,10 +168,13 @@ def check_retrieval_confidence(
     """
     Decide whether retrieved context is trustworthy enough to pass to the LLM.
 
-    Three guardrail conditions:
+    Guardrail conditions:
       1. No documents retrieved at all
-      2. Best similarity score is below SIMILARITY_THRESHOLD
-      3. Total context is too short to be meaningful
+      2. Total context is too short to be meaningful
+
+    Note: score-based filtering is handled by the reranker, which already
+    drops low-scoring chunks while keeping a safety net. The guardrail
+    here only blocks truly empty or degenerate results.
 
     Returns:
         (is_confident, reason_code)
@@ -115,10 +182,6 @@ def check_retrieval_confidence(
     """
     if not docs:
         return False, "no_documents_retrieved"
-
-    best_score = max(scores) if scores else 0.0
-    if best_score < SIMILARITY_THRESHOLD:
-        return False, f"low_confidence_score:{best_score:.3f}_threshold:{SIMILARITY_THRESHOLD}"
 
     total_context = " ".join(doc.page_content for doc in docs)
     if len(total_context.strip()) < MIN_CONTEXT_LENGTH:

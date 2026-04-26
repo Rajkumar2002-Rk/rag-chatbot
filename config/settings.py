@@ -13,7 +13,7 @@ load_dotenv()
 # ── OpenAI ────────────────────────────────────────────────────────────────────
 OPENAI_API_KEY: str   = os.getenv("OPENAI_API_KEY", "")
 EMBEDDING_MODEL: str  = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-LLM_MODEL: str        = os.getenv("LLM_MODEL",       "gpt-3.5-turbo")
+LLM_MODEL: str        = os.getenv("LLM_MODEL",       "gpt-4o-mini")
 LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0"))
 
 # ── Chunking ──────────────────────────────────────────────────────────────────
@@ -26,8 +26,10 @@ RETRIEVAL_FETCH_K: int = int(os.getenv("RETRIEVAL_FETCH_K", "20"))
 RETRIEVAL_LAMBDA: float = float(os.getenv("RETRIEVAL_LAMBDA", "0.7"))
 
 # ── Hallucination Guardrails ──────────────────────────────────────────────────
-# Minimum cosine similarity [0–1] for retrieved chunks to be trusted
-SIMILARITY_THRESHOLD: float = float(os.getenv("SIMILARITY_THRESHOLD", "0.15"))
+# Minimum cosine similarity [0–1] for the reranker to keep a chunk.
+# With cosine distance, relevant chunks typically score 0.2–0.8.
+# Set low to avoid false rejections; the LLM prompt handles quality.
+SIMILARITY_THRESHOLD: float = float(os.getenv("SIMILARITY_THRESHOLD", "0.10"))
 # Minimum total characters of context required before calling the LLM
 MIN_CONTEXT_LENGTH: int = int(os.getenv("MIN_CONTEXT_LENGTH", "50"))
 

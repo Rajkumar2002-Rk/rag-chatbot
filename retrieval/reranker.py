@@ -28,8 +28,9 @@ def rerank_by_score(
     Filter, deduplicate, and return top_k chunks by descending score.
 
     Steps:
-      1. Drop chunks below threshold
-      2. Sort by score descending
+      1. Sort by score descending
+      2. Drop chunks below threshold (but keep at least the best chunk
+         so the pipeline never returns empty when content was retrieved)
       3. Deduplicate: keep only the highest-scoring chunk per (source, page)
       4. Return top_k
 
@@ -45,12 +46,20 @@ def rerank_by_score(
     Returns:
         (filtered_docs, filtered_scores) sorted by descending score.
     """
-    paired = [
-        (doc, score)
-        for doc, score in zip(docs, scores)
-        if score >= threshold
-    ]
-    paired.sort(key=lambda x: x[1], reverse=True)
+    if not docs:
+        return [], []
+
+    # Sort all pairs by descending score first
+    all_paired = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
+
+    # Filter by threshold
+    paired = [(doc, score) for doc, score in all_paired if score >= threshold]
+
+    # Safety net: if threshold filtered everything, keep the best chunks.
+    # A low-scoring chunk is still better than returning nothing when the
+    # user is asking about a document that IS in the collection.
+    if not paired and all_paired:
+        paired = all_paired[:top_k]
 
     # Deduplicate: one chunk per (source, page) — keep highest score
     seen: set = set()
@@ -65,9 +74,6 @@ def rerank_by_score(
             deduped.append((doc, score))
 
     deduped = deduped[:top_k]
-
-    if not deduped:
-        return [], []
 
     out_docs, out_scores = zip(*deduped)
     return list(out_docs), list(out_scores)

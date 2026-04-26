@@ -13,14 +13,20 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import chromadb
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain.schema import Document
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config.settings import EMBEDDING_MODEL, VECTORSTORE_DIR, OPENAI_API_KEY
-import chromadb
-from langchain_chroma import Chroma
+
+# Cosine distance ensures LangChain's relevance scores are computed
+# correctly (1 - cosine_distance).  Without this, ChromaDB defaults to
+# L2 distance, which produces artificially low scores and triggers
+# the hallucination guardrail on perfectly valid content.
+_COLLECTION_METADATA = {"hnsw:space": "cosine"}
+
 
 class ChromaManager:
     """
@@ -31,6 +37,7 @@ class ChromaManager:
         via metadata {"source": filename} at query time.
       - persist=False gives a pure in-memory store — ideal for user uploads
         where nothing should touch disk.
+      - All collections use cosine distance so relevance scores are in [0, 1].
     """
 
     def __init__(
@@ -54,20 +61,31 @@ class ChromaManager:
 
     def _get_store(self):
         if self._store is None:
-          if not self.persist:
-            import tempfile
-            if self._temp_dir is None:
-                self._temp_dir = tempfile.mkdtemp()
-            client = chromadb.PersistentClient(path=self._temp_dir)
-          else:
-            # Library/persistent mode
-            client = chromadb.PersistentClient(path=str(self.persist_dir))
-          self._store = Chroma(
-            client=client,
-            collection_name=self.collection_name,
-            embedding_function=self._embeddings,
-         )
+            if self.persist:
+                client = chromadb.PersistentClient(path=str(self.persist_dir))
+            else:
+                # Use a temp directory — survives Streamlit reruns better
+                # than chromadb.Client() whose in-memory SQLite can go stale.
+                import tempfile
+                if self._temp_dir is None:
+                    self._temp_dir = tempfile.mkdtemp()
+                client = chromadb.PersistentClient(path=self._temp_dir)
+            self._store = Chroma(
+                client=client,
+                collection_name=self.collection_name,
+                embedding_function=self._embeddings,
+                collection_metadata=_COLLECTION_METADATA,
+            )
         return self._store
+
+    @property
+    def is_healthy(self) -> bool:
+        """Check if the underlying store is still accessible."""
+        try:
+            self._get_store()._collection.count()
+            return True
+        except Exception:
+            return False
 
     # ── Write ─────────────────────────────────────────────────────────────────
 
@@ -76,10 +94,19 @@ class ChromaManager:
         self._get_store().add_documents(documents)
 
     def clear(self) -> None:
-        """Delete all documents from the collection."""
+        """Delete the collection and force re-creation on next access."""
         store = self._get_store()
         store.delete_collection()
         self._store = None   # Force re-init on next access
+
+    def rebuild(self) -> None:
+        """
+        Delete and re-create the collection with correct settings.
+
+        Use this when migrating from an old collection (e.g. L2 → cosine).
+        """
+        self.clear()
+        self._get_store()    # Re-creates with _COLLECTION_METADATA
 
     # ── Read ──────────────────────────────────────────────────────────────────
 
@@ -100,6 +127,21 @@ class ChromaManager:
             if meta and "source" in meta
         }
         return sorted(sources)
+
+    def get_all_documents(self) -> List[Document]:
+        """
+        Return every Document in the collection (for BM25 index building).
+        Reconstructs LangChain Document objects from stored content + metadata.
+        """
+        store = self._get_store()
+        results = store.get(include=["documents", "metadatas"])
+        docs = []
+        for content, meta in zip(
+            results.get("documents", []),
+            results.get("metadatas", []),
+        ):
+            docs.append(Document(page_content=content, metadata=meta or {}))
+        return docs
 
     def get_chunk_count(self) -> int:
         """Return total number of chunks stored in the collection."""
@@ -125,7 +167,7 @@ class ChromaManager:
 
         if filter_docs:
             if len(filter_docs) == 1:
-                kwargs["filter"] = {"source": filter_docs[0]}
+                kwargs["filter"] = {"source": {"$eq": filter_docs[0]}}
             else:
                 kwargs["filter"] = {"source": {"$in": filter_docs}}
 

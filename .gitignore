@@ -7,12 +7,16 @@ __pycache__/
 *.pyc
 *.pyo
 
-# ChromaDB data
+# ChromaDB data (ignore persisted DB files, keep source code)
 vectorstore_data/
-vectorstore/
+vectorstore/chroma/
+vectorstore/*.sqlite3
+vectorstore/*.bin
+vectorstore/*/
 
 # Logs
 logs/*.log
+logs/feedback.json
 
 # Evaluation output
 evaluation_results.json
