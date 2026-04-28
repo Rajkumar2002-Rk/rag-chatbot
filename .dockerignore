@@ -24,6 +24,9 @@ __pycache__/
 *.pyd
 .Python
 
+# Frontend — served by nginx, not needed in API image
+frontend/
+
 # macOS system files
 .DS_Store
 

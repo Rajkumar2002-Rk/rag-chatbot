@@ -18,12 +18,9 @@ COPY . .
 # Create runtime directories
 RUN mkdir -p data/sampledocs vectorstore logs
 
-EXPOSE 8501
+EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+    CMD curl --fail http://localhost:8000/health || exit 1
 
-CMD ["streamlit", "run", "app/streamlit_ui.py", \
-     "--server.address=0.0.0.0", \
-     "--server.port=8501", \
-     "--server.headless=true"]
+CMD ["uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8000"]
