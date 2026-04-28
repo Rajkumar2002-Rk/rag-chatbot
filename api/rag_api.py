@@ -22,7 +22,7 @@ from langchain.schema import Document
 from langchain_chroma import Chroma
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config.settings import OPENAI_API_KEY, LLM_MODEL, LLM_TEMPERATURE, PROMPTS_DIR
+from config.settings import OPENAI_API_KEY, LLM_MODEL, LLM_TEMPERATURE, PROMPTS_DIR, SIMILARITY_THRESHOLD
 from retrieval.retriever import (
     FALLBACK_RESPONSE,
     check_retrieval_confidence,
@@ -189,6 +189,7 @@ def prepare_rag_context(
     filter_docs: Optional[List[str]] = None,
     chat_history: Optional[List[Dict[str, str]]] = None,
     all_docs: Optional[List[Document]] = None,
+    top_k_override: Optional[int] = None,
 ) -> Dict:
     """
     Run retrieval, reranking, and guardrail checks.
@@ -230,8 +231,11 @@ def prepare_rag_context(
 
     # ── Query classification ─────────────────────────────────────────────────
     retrieval_cfg = classify_query(search_query)
+    if top_k_override and top_k_override > retrieval_cfg.top_k:
+        retrieval_cfg.top_k = top_k_override
+        retrieval_cfg.fetch_k = max(retrieval_cfg.fetch_k, top_k_override * 3)
 
-    # ���─ Retrieve with scores (for guardrail) ─────────────────────────────────
+    #���─ Retrieve with scores (for guardrail) ─────────────────────────────────
     t_retrieval = time.time()
     docs, scores = retrieve_with_scores(
         vector_store,
@@ -245,7 +249,13 @@ def prepare_rag_context(
     raw_docs, raw_scores = list(docs), list(scores)
 
     # ── Rerank ───────────────────────────────────────────────────────────────
-    docs, scores = rerank_by_score(docs, scores, top_k=retrieval_cfg.top_k)
+    # For upload collections (top_k_override set), use a lower threshold
+    # and skip per-page dedup so all chunks contribute to the answer.
+    rerank_threshold = 0.01 if top_k_override else SIMILARITY_THRESHOLD
+    docs, scores = rerank_by_score(
+        docs, scores, top_k=retrieval_cfg.top_k,
+        threshold=rerank_threshold, deduplicate=not bool(top_k_override),
+    )
 
     # ── Guardrail ────────────────────────────────────────────────────────────
     confidence_ok, reason = check_retrieval_confidence(docs, scores)
@@ -359,6 +369,7 @@ def run_query(
     filter_docs: Optional[List[str]] = None,
     chat_history: Optional[List[Dict[str, str]]] = None,
     all_docs: Optional[List[Document]] = None,
+    top_k_override: Optional[int] = None,
 ) -> Dict:
     """
     Run a complete RAG query (non-streaming).
@@ -368,6 +379,7 @@ def run_query(
     """
     prepared = prepare_rag_context(
         vector_store, query, filter_docs, chat_history, all_docs,
+        top_k_override=top_k_override,
     )
 
     if not prepared.get("ready"):

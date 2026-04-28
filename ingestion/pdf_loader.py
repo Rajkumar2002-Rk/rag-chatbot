@@ -28,10 +28,58 @@ def _is_extraction_poor(documents: List[Document]) -> bool:
     return avg_per_page < _MIN_CHARS_PER_PAGE
 
 
+def _extract_tables_as_markdown(page) -> str:
+    """Extract tables from a page and format as markdown."""
+    try:
+        tables = page.find_tables()
+        if not tables or len(tables.tables) == 0:
+            return ""
+
+        parts = []
+        for table in tables:
+            rows = table.extract()
+            if not rows or len(rows) < 1:
+                continue
+            # Build markdown table
+            header = rows[0]
+            col_count = len(header)
+            header_cells = [str(c or "").strip() for c in header]
+            lines = ["| " + " | ".join(header_cells) + " |"]
+            lines.append("| " + " | ".join(["---"] * col_count) + " |")
+            for row in rows[1:]:
+                cells = [str(c or "").strip() for c in row[:col_count]]
+                lines.append("| " + " | ".join(cells) + " |")
+            parts.append("\n".join(lines))
+        return "\n\n".join(parts)
+    except Exception:
+        return ""
+
+
+def _count_images(page) -> int:
+    """Count meaningful images on a page (skip tiny icons)."""
+    try:
+        images = page.get_images(full=True)
+        # Filter out tiny images (likely icons/bullets)
+        count = 0
+        for img in images:
+            xref = img[0]
+            try:
+                base_image = page.parent.extract_image(xref)
+                if base_image and base_image.get("width", 0) > 50 and base_image.get("height", 0) > 50:
+                    count += 1
+            except Exception:
+                count += 1  # Count it if we can't check size
+        return count
+    except Exception:
+        return 0
+
+
 def _load_pdf_with_pymupdf(file_path: str) -> List[Document]:
     """
     Fallback PDF loader using PyMuPDF (fitz).
-    Handles embedded fonts, rotated text, and complex layouts better than pypdf.
+    Handles embedded fonts, rotated text, tables, and complex layouts
+    better than pypdf. Tables are extracted as markdown tables.
+    Images are noted as placeholders.
     """
     import fitz  # pymupdf
 
@@ -39,15 +87,37 @@ def _load_pdf_with_pymupdf(file_path: str) -> List[Document]:
     filename = Path(file_path).name
     pdf = fitz.open(file_path)
     for page_num, page in enumerate(pdf):
+        parts = []
+
+        # 1. Extract regular text
         text = page.get_text("text")
         if text.strip():
+            parts.append(text.strip())
+
+        # 2. Extract tables as markdown
+        table_md = _extract_tables_as_markdown(page)
+        if table_md:
+            parts.append("\n[TABLE]\n" + table_md + "\n[/TABLE]")
+
+        # 3. Note images/charts present on the page
+        img_count = _count_images(page)
+        if img_count > 0:
+            parts.append(
+                f"\n[This page contains {img_count} image(s)/chart(s) "
+                f"that cannot be extracted as text.]"
+            )
+
+        page_content = "\n\n".join(parts)
+        if page_content.strip():
             docs.append(Document(
-                page_content=text,
+                page_content=page_content,
                 metadata={
                     "source": filename,
                     "file_path": file_path,
                     "page": page_num,
                     "extraction_method": "pymupdf",
+                    "has_tables": bool(table_md),
+                    "image_count": img_count,
                 },
             ))
     pdf.close()
@@ -59,9 +129,20 @@ def _load_pdf_with_pymupdf(file_path: str) -> List[Document]:
 def load_pdf(file_path: str) -> List[Document]:
     """
     Load a single PDF file.
-    If standard extraction yields poor results, falls back to PyMuPDF
-    for better handling of scanned/complex PDFs.
+    Tries PyMuPDF first for better table/layout handling, then falls
+    back to pypdf if PyMuPDF is unavailable or fails.
     """
+    # Try PyMuPDF first — handles tables, complex layouts, images
+    try:
+        pymupdf_docs = _load_pdf_with_pymupdf(file_path)
+        if pymupdf_docs and not _is_extraction_poor(pymupdf_docs):
+            return pymupdf_docs
+    except ImportError:
+        pass   # pymupdf not installed
+    except Exception:
+        pass   # any other error
+
+    # Fallback to pypdf
     loader = PyPDFLoader(file_path)
     documents = loader.load()
     filename = Path(file_path).name
@@ -69,17 +150,6 @@ def load_pdf(file_path: str) -> List[Document]:
         doc.metadata["source"]    = filename
         doc.metadata["file_path"] = file_path
         doc.metadata["extraction_method"] = "pypdf"
-
-    # Fallback: if pypdf extracted almost no text, try PyMuPDF
-    if _is_extraction_poor(documents):
-        try:
-            fallback_docs = _load_pdf_with_pymupdf(file_path)
-            if fallback_docs and not _is_extraction_poor(fallback_docs):
-                return fallback_docs
-        except ImportError:
-            pass   # pymupdf not installed — use whatever pypdf got
-        except Exception:
-            pass   # any other error — use original
 
     return documents
 

@@ -13,7 +13,7 @@ load_dotenv()
 # ── OpenAI ────────────────────────────────────────────────────────────────────
 OPENAI_API_KEY: str   = os.getenv("OPENAI_API_KEY", "")
 EMBEDDING_MODEL: str  = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-LLM_MODEL: str        = os.getenv("LLM_MODEL",       "gpt-4o-mini")
+LLM_MODEL: str        = os.getenv("LLM_MODEL",       "gpt-4o")
 LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0"))
 
 # ── Chunking ──────────────────────────────────────────────────────────────────
